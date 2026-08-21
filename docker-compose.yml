@@ -1,0 +1,17 @@
+services:
+  needledrop:
+    image: ghcr.io/bclark303/needledrop:latest
+    container_name: needledrop
+    restart: unless-stopped
+    pull_policy: always
+    ports:
+      - "3030:3000"
+    environment:
+      NAVIDROME_URL: ${NAVIDROME_URL}
+      SESSION_SECRET: ${SESSION_SECRET}
+      NEEDLEDROP_DATA_DIR: /data
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.1.0}
+      DISCOGS_TOKEN: ${DISCOGS_TOKEN:-}
+    volumes:
+      - ./data:/data
