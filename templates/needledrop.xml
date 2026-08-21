@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <Name>NeedleDrop</Name>
+  <Repository>ghcr.io/bclark303/needledrop:latest</Repository>
+  <Registry>https://github.com/bclark303/needledrop/pkgs/container/needledrop</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+
+  <Support>https://github.com/bclark303/needledrop/issues</Support>
+  <Project>https://github.com/bclark303/needledrop</Project>
+  <Overview>NeedleDrop is a vinyl-style client for Navidrome/OpenSubsonic. Browse your record collection, play albums as Side A / Side B, manually flip the record, and optionally enrich releases with MusicBrainz and Discogs metadata.</Overview>
+  <Category>MediaApp:Music</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/bclark303/needledrop/main/templates/needledrop.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/bclark303/needledrop/main/public/icon.svg</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>A running Navidrome server reachable from this container. If the /data volume is not writable, ensure /mnt/user/appdata/needledrop is writable by UID/GID 1001:1001.</Requires>
+
+  <Config Name="WebUI Port" Target="3000" Default="3030" Mode="tcp" Description="Host port used to access the NeedleDrop WebUI." Type="Port" Display="always" Required="true" Mask="false">3030</Config>
+
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/needledrop" Mode="rw" Description="Persistent NeedleDrop data, including pressing choices and collection-specific metadata." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/needledrop</Config>
+
+  <Config Name="Navidrome URL" Target="NAVIDROME_URL" Default="" Mode="" Description="URL NeedleDrop should use to reach Navidrome. Example: http://192.168.1.100:4533. Do not use localhost unless Navidrome is in the same container." Type="Variable" Display="always" Required="true" Mask="false"></Config>
+
+  <Config Name="Session Secret" Target="SESSION_SECRET" Default="" Mode="" Description="Required 64-character random hex secret used to encrypt NeedleDrop sessions. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"></Config>
+
+  <Config Name="Discogs Token" Target="DISCOGS_TOKEN" Default="" Mode="" Description="Optional Discogs personal access token for richer vinyl pressing metadata." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+
+  <Config Name="MusicBrainz User Agent" Target="MUSICBRAINZ_USER_AGENT" Default="NeedleDrop/0.1.0 (https://github.com/bclark303/needledrop)" Mode="" Description="User-Agent sent to MusicBrainz for metadata lookups." Type="Variable" Display="advanced" Required="true" Mask="false">NeedleDrop/0.1.0 (https://github.com/bclark303/needledrop)</Config>
+
+  <Config Name="Data Directory" Target="NEEDLEDROP_DATA_DIR" Default="/data" Mode="" Description="Internal directory used by NeedleDrop for persistent application data." Type="Variable" Display="advanced" Required="true" Mask="false">/data</Config>
+
+  <Config Name="Secure Cookies" Target="COOKIE_SECURE" Default="false" Mode="" Description="Use true only when NeedleDrop is accessed over HTTPS. Leave false for plain HTTP over LAN or Tailscale." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
+</Container>
