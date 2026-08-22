@@ -38,15 +38,15 @@ export function buildPlaybackSides(album: AlbumDetail, meta: VinylMeta | null): 
   const exact = meta?.sides || [];
   if (exact.length) {
     const byId = new Map(album.song.map((song) => [song.id, song]));
-    const mapped = exact.map((side) => ({
+    // Once a physical release is selected it defines the record. Missing tracks
+    // remain visibly missing instead of making NeedleDrop silently fall back to
+    // a generic two-side split of the digital album.
+    return exact.map((side) => ({
       label: side.label,
       songs: side.tracks
         .map((track) => (track.navidromeSongId ? byId.get(track.navidromeSongId) : undefined))
         .filter(Boolean) as Song[],
     }));
-    const mappedIds = mapped.flatMap((side) => side.songs.map((song) => song.id));
-    const unique = new Set(mappedIds);
-    if (mappedIds.length === album.song.length && unique.size === album.song.length && exact.length >= 2) return mapped;
   }
 
   const split = fallbackSplit(album, meta);
