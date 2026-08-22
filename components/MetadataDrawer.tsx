@@ -151,7 +151,7 @@ export default function MetadataDrawer({
         <div className="meta-block-title"><h3>Album artwork</h3><span>Choose Navidrome art or an image from the selected Discogs release.</span></div>
         <div className="artwork-picker">
           <button className={meta?.artworkSource === 'navidrome' ? 'selected' : ''} onClick={() => chooseArtwork('navidrome')}><div><Image src={cover(album.coverArt, 300)} alt="Navidrome cover" fill sizes="130px" unoptimized /></div><span>Navidrome</span></button>
-          {(meta?.images || []).map((image, index) => image.uri ? <button key={`${image.uri}-${index}`} className={meta.artworkSource !== 'navidrome' && meta.discogsImageIndex === index ? 'selected' : ''} onClick={() => chooseArtwork('discogs', index)}><div><Image src={`/api/metadata/${encodeURIComponent(album.id)}/image/${index}`} alt={`Discogs image ${index + 1}`} fill sizes="130px" unoptimized /></div><span>{image.type || `Discogs ${index + 1}`}</span></button> : null)}
+          {(meta?.images || []).map((image, index) => image.uri ? <button key={`${image.uri}-${index}`} className={meta?.artworkSource !== 'navidrome' && meta?.discogsImageIndex === index ? 'selected' : ''} onClick={() => chooseArtwork('discogs', index)}><div><Image src={`/api/metadata/${encodeURIComponent(album.id)}/image/${index}`} alt={`Discogs image ${index + 1}`} fill sizes="130px" unoptimized /></div><span>{image.type || `Discogs ${index + 1}`}</span></button> : null)}
         </div>
       </section>
 
