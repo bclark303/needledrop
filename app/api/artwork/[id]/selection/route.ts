@@ -34,8 +34,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       const patch: { artworkSource?: ArtworkSource; discogsImageIndex?: number } = {};
       if (candidate.source === 'discogs') {
         patch.artworkSource = 'discogs';
-        const match = candidate.sourceKey.match(/:(\d+)$/);
-        if (match) patch.discogsImageIndex = Number(match[1]);
+        // Exact-release candidates use discogs:<releaseId>:<imageIndex>.
+        // A discogs-search:<releaseId> candidate is only an album-art fallback,
+        // so it must not be mistaken for an index in the selected release's image array.
+        const match = candidate.sourceKey.match(/^discogs:\d+:(\d+)$/);
+        patch.discogsImageIndex = match ? Number(match[1]) : undefined;
       } else if (candidate.source === 'coverartarchive') {
         patch.artworkSource = 'coverartarchive';
         patch.discogsImageIndex = undefined;
