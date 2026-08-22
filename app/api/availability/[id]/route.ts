@@ -7,6 +7,12 @@ import {
   type ReleaseAvailability,
 } from '@/lib/collection-engine';
 import { getAlbumRecord, updateAlbumIdentity } from '@/lib/db';
+import {
+  getPublicDirectRepairSettings,
+  maybePromoteDirectRepair,
+  requestDirectPromotion,
+  validateDirectRepairTarget,
+} from '@/lib/direct-repair';
 import { requestAlbumSearch } from '@/lib/lidarr';
 import { findReleaseGroup } from '@/lib/musicbrainz';
 import {
@@ -34,11 +40,14 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       refreshLatestLidarrRequest(id, resolved.availability),
       refreshNzbRepairRequest(id, missing),
     ]);
+    const directPromotion = await maybePromoteDirectRepair(repair);
     return NextResponse.json({
       availability: resolved.availability,
       request,
       repair,
+      directPromotion,
       repairConfigured: nzbRepairConfigured(),
+      directWriteEnabled: getPublicDirectRepairSettings().enabled,
       releaseGroupMbid: releaseGroupMbid(id, resolved.meta),
       canRequest: canManageSettings(session.u),
     });
@@ -55,7 +64,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (!canManageSettings(session.u)) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
 
   try {
-    const body = await request.json().catch(() => ({})) as { action?: string; candidateId?: string };
+    const body = await request.json().catch(() => ({})) as {
+      action?: string;
+      candidateId?: string;
+      destinationMode?: 'repair-library' | 'album-folder';
+    };
     const resolved = await resolve(id);
     const missing = repairTracks(resolved.availability);
 
@@ -64,12 +77,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         refreshLatestLidarrRequest(id, resolved.availability),
         refreshNzbRepairRequest(id, missing),
       ]);
+      const directPromotion = await maybePromoteDirectRepair(repair);
       return NextResponse.json({
         ok: true,
         availability: resolved.availability,
         request: latest,
         repair,
+        directPromotion,
         repairConfigured: nzbRepairConfigured(),
+        directWriteEnabled: getPublicDirectRepairSettings().enabled,
       });
     }
 
@@ -88,11 +104,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         availability: resolved.availability,
         candidates,
         repairConfigured: nzbRepairConfigured(),
+        directWriteEnabled: getPublicDirectRepairSettings().enabled,
       });
     }
 
     if (body.action === 'start-nzb') {
       if (!body.candidateId) return NextResponse.json({ error: 'Choose an NZB candidate first.' }, { status: 400 });
+      const directRequested = body.destinationMode === 'album-folder';
+      if (directRequested) await validateDirectRepairTarget(id);
+
       const repair = await startNzbRepair({
         albumId: id,
         artist: resolved.album.artist,
@@ -100,11 +120,15 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         missingTracks: missing,
         candidateId: body.candidateId,
       });
+      if (!repair) throw new Error('NeedleDrop queued the repair but could not persist its repair record.');
+      const directPromotion = directRequested ? requestDirectPromotion(repair.id, id) : null;
       return NextResponse.json({
         ok: true,
         availability: resolved.availability,
         repair,
+        directPromotion,
         repairConfigured: true,
+        directWriteEnabled: getPublicDirectRepairSettings().enabled,
       });
     }
 
@@ -127,7 +151,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ ok: true, availability: resolved.availability, request: latest });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not repair missing tracks';
-    const status = message === 'LIDARR_NOT_CONFIGURED' || message.startsWith('NZB_REPAIR_') ? 503 : 500;
+    const status = message === 'LIDARR_NOT_CONFIGURED' || message.startsWith('NZB_REPAIR_') || message === 'DIRECT_REPAIR_NOT_ENABLED' ? 503 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
