@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { AlertCircle, CheckCircle2, CopyMinus, Database, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import LidarrSettingsCard from './LidarrSettingsCard';
+import NzbRepairSettingsCard from './NzbRepairSettingsCard';
 import { cover } from './vinyl';
 
 type ScanStatus = {
@@ -96,6 +97,7 @@ export default function LibraryManager({
         </div>
       </section>
 
+      <NzbRepairSettingsCard />
       <LidarrSettingsCard />
 
       <section className="library-manager-block">
