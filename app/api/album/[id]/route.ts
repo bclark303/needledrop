@@ -16,6 +16,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     void maybeAutoEnrich([original]).catch(() => {});
     const album = {
       ...original,
+      navidromeCoverArt: original.coverArt,
       coverArt: `nd:${id}`,
       song: (original.song || []).map((song) => ({ ...song, coverArt: song.coverArt || `nd:${id}` })),
     };
