@@ -19,7 +19,7 @@ export async function getLastFmAlbumInfo(artist: string, album: string, apiKey: 
     format: 'json',
   });
   const response = await fetch(`https://ws.audioscrobbler.com/2.0/?${query}`, {
-    headers: { 'User-Agent': 'NeedleDrop/0.5.0' },
+    headers: { 'User-Agent': 'NeedleDrop/0.5.0 (https://github.com/bclark303/needledrop)' },
     cache: 'no-store',
   });
   if (!response.ok) throw new Error(`Last.fm HTTP ${response.status}`);
@@ -34,12 +34,26 @@ export async function getLastFmAlbumInfo(artist: string, album: string, apiKey: 
     listeners: info.listeners == null ? undefined : Number(info.listeners),
     playcount: info.playcount == null ? undefined : Number(info.playcount),
     tags: (tagsBlock?.tag || []).map((tag) => tag.name?.trim()).filter((tag): tag is string => Boolean(tag)),
-    summary: wiki?.summary,
-    content: wiki?.content,
+    summary: plainText(wiki?.summary),
+    content: plainText(wiki?.content),
   };
 }
 
 export async function testLastFm(apiKey: string) {
   const info = await getLastFmAlbumInfo('Pink Floyd', 'The Dark Side of the Moon', apiKey);
   return { tags: info.tags.length, url: info.url };
+}
+
+function plainText(value?: string) {
+  if (!value) return undefined;
+  return value
+    .replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
