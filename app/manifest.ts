@@ -10,6 +10,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: '#11100d',
     theme_color: '#11100d',
     orientation: 'any',
-    icons: [{ src: '/needledrop-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+    icons: [
+      { src: '/needledrop-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+      { src: '/needledrop-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+    ],
   };
 }
