@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { AlbumDetail } from '@/components/types';
+import { resolveVirtualRelease } from '@/lib/collection-engine';
 import { getAlbumRecord, getMetadataValues, indexAlbums, listArtwork } from '@/lib/db';
 import { maybeAutoEnrich } from '@/lib/enrichment';
 import { resolveCanonicalAlbumId } from '@/lib/library';
 import { subsonic } from '@/lib/subsonic';
-import { getMeta } from '@/lib/store';
+import { getMeta, saveMeta } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -16,16 +17,21 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     const original = root.album as AlbumDetail;
     indexAlbums([original]);
     void maybeAutoEnrich([original]).catch(() => {});
+
+    const virtual = await resolveVirtualRelease(original, meta);
+    if (meta && virtual.meta && JSON.stringify(meta.sides) !== JSON.stringify(virtual.meta.sides)) await saveMeta(id, virtual.meta);
+    const effectiveMeta = virtual.meta || meta;
     const album = {
-      ...original,
-      rating: meta?.rating,
+      ...virtual.album,
+      rating: effectiveMeta?.rating,
       navidromeCoverArt: original.coverArt,
       coverArt: `nd:${id}`,
-      song: (original.song || []).map((song) => ({ ...song, coverArt: `nd:${id}` })),
+      song: (virtual.album.song || []).map((song) => ({ ...song, coverArt: `nd:${id}` })),
     };
     return NextResponse.json({
       album,
-      meta,
+      meta: effectiveMeta,
+      availability: virtual.availability,
       library: getAlbumRecord(id),
       metadataValues: getMetadataValues(id),
       artwork: listArtwork(id),
