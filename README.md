@@ -2,9 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets, select an exact pressing, put a record on an animated turntable, lower the needle, flip sides, and queue albums on an automatic changer spindle.
 
-Current version: **v0.4.0**
+Current version: **v0.4.1**
 
 ## Release milestones
+
+### v0.4.1 — Unraid/appdata permission hotfix
+
+- Container now starts with a small privilege-dropping entrypoint.
+- `/data` ownership is automatically repaired before NeedleDrop starts.
+- Configurable `PUID`, `PGID` and `UMASK` values are supported.
+- The Unraid template defaults to `PUID=99` and `PGID=100` (`nobody:users`).
+- Fixes `EACCES: permission denied` when saving settings or selected Discogs releases on a fresh bind-mounted appdata directory.
 
 ### v0.2.1 — branding, versioning and in-app settings
 
@@ -85,6 +93,8 @@ Recommended Unraid values:
 - `NAVIDROME_URL`: initial Navidrome address reachable from the container
 - `SESSION_SECRET`: random 32+ character secret; `openssl rand -hex 32` is recommended
 - `DISCOGS_TOKEN`: optional initial Discogs token
+- `PUID=99` and `PGID=100`: standard Unraid `nobody:users`; the container repairs `/data` ownership automatically at startup
+- `UMASK=002`
 - `MUSICBRAINZ_USER_AGENT`: optional initial MusicBrainz user-agent
 - `NEEDLEDROP_ADMIN_USERS`: optional comma-separated Navidrome usernames allowed to change system settings
 - `COOKIE_SECURE=false` for plain LAN/Tailscale HTTP; use `true` behind HTTPS
@@ -93,7 +103,7 @@ The Unraid template is in `templates/needledrop.xml` and uses `public/needledrop
 
 Connection values supplied by Docker are first-run/default values. After login, authorized users can change Navidrome, Discogs, MusicBrainz and playback defaults from the NeedleDrop Settings panel; saved values live in `/data/settings.json` and take precedence over the environment defaults.
 
-If `/data` is not writable, ensure the host directory is writable by container UID/GID `1001:1001`.
+NeedleDrop v0.4.1+ starts as root only long enough to ensure the configured data directory is owned by `PUID:PGID`, then immediately drops privileges before launching Node. This avoids the root-owned bind-mount problem common with freshly created Unraid appdata directories.
 
 ## Updating
 
@@ -110,6 +120,7 @@ Then restart the container. In Unraid, **Force Update** performs the equivalent 
 - Navidrome passwords are not stored. Login derives standard Subsonic token authentication and stores it in an AES-256-GCM encrypted HttpOnly cookie.
 - Discogs tokens saved in the app are stored server-side in `/data/settings.json`; the file is created with mode `0600` where supported and the token is never returned to the browser.
 - With `NEEDLEDROP_ADMIN_USERS` blank, any authenticated Navidrome user can manage system settings. For multi-user installations, set it to one or more comma-separated Navidrome usernames.
+- The container drops root privileges before starting the application process.
 - Do not expose NeedleDrop directly to the public Internet over plain HTTP.
 
 ## Development
