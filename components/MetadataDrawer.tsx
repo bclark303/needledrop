@@ -197,7 +197,7 @@ export default function MetadataDrawer({
       {library && (library.lastfmTags?.length || library.lastfmSummary) && <section className="meta-block">
         <div className="meta-block-title"><h3>Last.fm context</h3>{library.lastfmUrl && <a href={library.lastfmUrl} target="_blank" rel="noreferrer">Open on Last.fm <ExternalLink size={14} /></a>}</div>
         {library.lastfmTags?.length ? <div className="metadata-tags">{library.lastfmTags.slice(0, 12).map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
-        {library.lastfmSummary && <p className="release-notes" dangerouslySetInnerHTML={{ __html: library.lastfmSummary }} />}
+        {library.lastfmSummary && <p className="release-notes">{library.lastfmSummary}</p>}
         {(library.lastfmListeners || library.lastfmPlaycount) && <p className="muted">{library.lastfmListeners?.toLocaleString()} listeners · {library.lastfmPlaycount?.toLocaleString()} plays</p>}
       </section>}
 
