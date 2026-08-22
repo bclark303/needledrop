@@ -27,6 +27,8 @@ services:
       NZB_REPAIR_IMPORT_PATH: /music-repair
       NZB_REPAIR_CLEANUP: ${NZB_REPAIR_CLEANUP:-true}
       NZB_REPAIR_PREFER_LOSSLESS: ${NZB_REPAIR_PREFER_LOSSLESS:-true}
+      NZB_REPAIR_DIRECT_WRITE: ${NZB_REPAIR_DIRECT_WRITE:-false}
+      NZB_REPAIR_LIBRARY_PATH: /music
       NEEDLEDROP_ADMIN_USERS: ${NEEDLEDROP_ADMIN_USERS:-}
       PUID: ${PUID:-1001}
       PGID: ${PGID:-1001}
@@ -35,3 +37,4 @@ services:
       - ./data:/data
       - ${NZB_REPAIR_STAGING_HOST:-./repair-staging}:/repair
       - ${NZB_REPAIR_IMPORT_HOST:-./repair-music}:/music-repair
+      - ${NZB_REPAIR_LIBRARY_HOST:-./music-direct}:/music
