@@ -61,6 +61,7 @@ export default function MetadataDrawer({
 }) {
   const [data, setData] = useState<MetadataResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [artworkBusy, setArtworkBusy] = useState(false);
   const [savingRelease, setSavingRelease] = useState<number | null>(null);
   const [form, setForm] = useState<VinylMeta>(meta || {});
   const [error, setError] = useState('');
@@ -78,6 +79,20 @@ export default function MetadataDrawer({
     setLoading(false);
     if (!response.ok) setError(payload.error || 'Metadata lookup failed');
     else setData(payload);
+  }
+
+  async function refreshArtwork() {
+    setArtworkBusy(true);
+    setError('');
+    const response = await fetch(`/api/artwork/${encodeURIComponent(album.id)}/refresh`, { method: 'POST' });
+    const payload = await response.json().catch(() => ({}));
+    setArtworkBusy(false);
+    if (!response.ok) {
+      setError(payload.error || 'Could not refresh artwork');
+      return;
+    }
+    await refresh();
+    window.dispatchEvent(new Event('needledrop:artwork-updated'));
   }
 
   async function save(patch: Partial<VinylMeta>) {
@@ -173,8 +188,9 @@ export default function MetadataDrawer({
           <label>Condition<input value={form.condition || ''} onChange={(e) => setForm((value) => ({ ...value, condition: e.target.value }))} placeholder="NM" /></label>
           <label>Crate / shelf<input value={form.crate || ''} onChange={(e) => setForm((value) => ({ ...value, crate: e.target.value }))} placeholder="Main shelf" /></label>
           <label>Acquired<input type="date" value={form.acquiredAt || ''} onChange={(e) => setForm((value) => ({ ...value, acquiredAt: e.target.value }))} /></label>
+          <label>My rating<select value={form.rating || 0} onChange={(e) => setForm((value) => ({ ...value, rating: Number(e.target.value) || undefined }))}><option value="0">Not rated</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
           <label className="wide">Notes<textarea value={form.notes || ''} onChange={(e) => setForm((value) => ({ ...value, notes: e.target.value }))} /></label>
-          <button className="primary wide" onClick={() => save({ vinylColor: form.vinylColor, condition: form.condition, crate: form.crate, acquiredAt: form.acquiredAt, notes: form.notes })}>Save local details</button>
+          <button className="primary wide" onClick={() => save({ vinylColor: form.vinylColor, condition: form.condition, crate: form.crate, acquiredAt: form.acquiredAt, rating: form.rating, notes: form.notes })}>Save local details</button>
         </div>
       </section>
 
@@ -185,13 +201,13 @@ export default function MetadataDrawer({
       </section>}
 
       <section className="meta-block">
-        <div className="meta-block-title"><h3>Canonical album artwork</h3><span>Auto follows the source priority in Settings. Choosing an image here pins it and automatic refreshes will not replace it.</span></div>
+        <div className="meta-block-title"><div><h3>Canonical album artwork</h3><span>Auto follows the source priority in Settings. A pinned image always wins.</span></div><button className="text-button" onClick={() => void refreshArtwork()} disabled={artworkBusy}><RefreshCw size={14} className={artworkBusy ? 'spin' : ''} /> {artworkBusy ? 'Resolving…' : 'Resolve again'}</button></div>
         <div className="artwork-picker canonical-artwork-picker">
           <button className={library?.artworkMode === 'auto' ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('auto')}><div><Image src={cover(album.coverArt, 300)} alt="Automatic artwork" fill sizes="130px" unoptimized /></div><span>Auto · best source</span></button>
           {data?.navidromeCoverArt && <button className={library?.artworkMode === 'navidrome' ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('navidrome')}><div><Image src={cover(data.navidromeCoverArt, 300)} alt="Navidrome artwork" fill sizes="130px" unoptimized /></div><span>Navidrome</span></button>}
-          {frontArtwork.map((candidate) => <button key={candidate.id} className={library?.artworkMode === 'candidate' && library.canonicalArtworkId === candidate.id ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('candidate', candidate.id)}><div><Image src={`/api/artwork/candidate/${candidate.id}`} alt={`${candidate.source} artwork`} fill sizes="130px" unoptimized /></div><span>{candidate.source === 'coverartarchive' ? 'Cover Art Archive' : candidate.source} · {candidate.scope === 'release-group' ? 'album' : 'exact release'}</span></button>)}
+          {frontArtwork.map((candidate) => <button key={candidate.id} className={library?.artworkMode === 'candidate' && library.canonicalArtworkId === candidate.id ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('candidate', candidate.id)}><div><Image src={`/api/artwork/candidate/${candidate.id}`} alt={`${candidate.source} artwork`} fill sizes="130px" unoptimized /></div><span>{candidate.source === 'coverartarchive' ? 'Cover Art Archive' : candidate.source} · {candidate.scope === 'release-group' ? 'album' : candidate.scope === 'library' ? 'library match' : 'exact release'}</span></button>)}
         </div>
-        {!data?.navidromeCoverArt && !frontArtwork.length && <p className="muted">No artwork candidates have been resolved yet. Leave Auto selected and run Collection Enrichment in Settings.</p>}
+        {!data?.navidromeCoverArt && !frontArtwork.length && <p className="muted">No artwork candidates have been resolved yet. Use Resolve again or run a Library rescan.</p>}
       </section>
 
       {library && (library.lastfmTags?.length || library.lastfmSummary) && <section className="meta-block">

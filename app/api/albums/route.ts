@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Album } from '@/components/types';
-import { indexAlbums } from '@/lib/db';
+import type { Album, VinylMeta } from '@/components/types';
+import { getAlbumMetaJson, indexAlbums } from '@/lib/db';
 import { maybeAutoEnrich } from '@/lib/enrichment';
+import { filterMergedAlbums } from '@/lib/library';
 import { subsonic } from '@/lib/subsonic';
 
 export const runtime = 'nodejs';
@@ -17,13 +18,18 @@ export async function GET(req: NextRequest) {
     const root = await subsonic('getAlbumList2', { type, size, offset, genre, fromYear, toYear });
     const albums = (root.albumList2?.album ?? []) as Album[];
     indexAlbums(albums);
-    void maybeAutoEnrich(albums).catch(() => {});
+    const visible = filterMergedAlbums(albums);
+    void maybeAutoEnrich(visible).catch(() => {});
     return NextResponse.json({
-      albums: albums.map((album) => ({
-        ...album,
-        navidromeCoverArt: album.coverArt,
-        coverArt: `nd:${album.id}`,
-      })),
+      albums: visible.map((album) => {
+        const local = getAlbumMetaJson<VinylMeta>(album.id);
+        return {
+          ...album,
+          rating: local?.rating,
+          navidromeCoverArt: album.coverArt,
+          coverArt: `nd:${album.id}`,
+        };
+      }),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed';

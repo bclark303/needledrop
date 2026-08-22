@@ -10,23 +10,22 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Search,
   Settings2,
   Shuffle,
   SkipBack,
   SkipForward,
-  Sparkles,
 } from 'lucide-react';
 import type { Album, AlbumDetail, AppSettings, Song, TurntableSpeed, VinylMeta } from './types';
 import { buildDisplaySides, buildPlaybackSides, cover, nominalSpeed, transitionText } from './vinyl';
 import AlbumView from './AlbumView';
+import CollectionBrowser, { type CollectionSort } from './CollectionBrowser';
+import LibraryManager from './LibraryManager';
 import MetadataDrawer from './MetadataDrawer';
 import SettingsPanel from './SettingsPanel';
 import Turntable from './Turntable';
 import ChangerPanel, { type ChangerItem } from './ChangerPanel';
 
 type View = 'library' | 'album' | 'turntable';
-type SortMode = 'alphabeticalByArtist' | 'newest' | 'recent' | 'frequent' | 'starred';
 const CHANGER_STORAGE = 'needledrop.changerQueue.v1';
 
 export default function NeedleDropApp() {
@@ -37,11 +36,12 @@ export default function NeedleDropApp() {
   const [playingAlbum, setPlayingAlbum] = useState<AlbumDetail | null>(null);
   const [playingMeta, setPlayingMeta] = useState<VinylMeta | null>(null);
   const [view, setView] = useState<View>('library');
-  const [sort, setSort] = useState<SortMode>('alphabeticalByArtist');
+  const [sort, setSort] = useState<CollectionSort>('artist');
   const [query, setQuery] = useState('');
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [version, setVersion] = useState('0.4.0');
+  const [version, setVersion] = useState('0.6.0');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [libraryManagerOpen, setLibraryManagerOpen] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [changerOpen, setChangerOpen] = useState(false);
   const [strict, setStrict] = useState(true);
@@ -145,9 +145,17 @@ export default function NeedleDropApp() {
     applySettings(payload.settings, payload.version);
   }
 
-  async function loadAlbums(type: SortMode, probe = false) {
-    const endpoint = type === 'starred' ? '/api/albums?type=alphabeticalByArtist&size=500' : `/api/albums?type=${type}&size=500`;
-    const response = await fetch(endpoint);
+  async function loadAlbums(type: CollectionSort, probe = false) {
+    const serverType = type === 'newest'
+      ? 'newest'
+      : type === 'recent'
+        ? 'recent'
+        : type === 'frequent'
+          ? 'frequent'
+          : type === 'album'
+            ? 'alphabeticalByName'
+            : 'alphabeticalByArtist';
+    const response = await fetch(`/api/albums?type=${serverType}&size=500`);
     if (response.status === 401) {
       setLoggedIn(false);
       return;
@@ -161,6 +169,12 @@ export default function NeedleDropApp() {
     if (type === 'starred') list = list.filter((album) => album.starred);
     setAlbums(list);
     setLoggedIn(true);
+  }
+
+  async function changeSort(next: CollectionSort) {
+    setSort(next);
+    setQuery('');
+    await loadAlbums(next);
   }
 
   async function fetchAlbumDetails(id: string): Promise<{ album: AlbumDetail; meta: VinylMeta | null } | null> {
@@ -406,7 +420,7 @@ export default function NeedleDropApp() {
     if (motorOn && cueDown) element.play().then(() => setPlaying(true)).catch(() => {});
   }
 
-  if (loggedIn === false) return <Login onSuccess={() => { void loadAlbums('alphabeticalByArtist'); void refreshSettings(); }} />;
+  if (loggedIn === false) return <Login onSuccess={() => { void loadAlbums('artist'); void refreshSettings(); }} />;
   if (loggedIn === null) return <div className="splash"><Image src="/needledrop-icon.svg" alt="" width={86} height={86} priority /><h1>NeedleDrop</h1><p>Opening the record room…</p></div>;
 
   const sideInfo = queueSideInfo(queueIndex);
@@ -421,22 +435,14 @@ export default function NeedleDropApp() {
         <label className="mode-toggle" title="Vinyl Mode stops at the end of each physical side"><input type="checkbox" checked={strict} onChange={(event) => setStrict(event.target.checked)} /><span>{strict ? 'Vinyl Mode' : 'Normal Mode'}</span></label>
         {playingAlbum && <button className="icon-btn" onClick={() => setView('turntable')} title="Turntable"><Disc3 /></button>}
         <button className="icon-btn with-count" onClick={() => setChangerOpen(true)} title="Record changer"><Layers3 /><span>{changerQueue.length}</span></button>
+        <button className="icon-btn" onClick={() => setLibraryManagerOpen(true)} title="Library management"><LibraryBig /></button>
         <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings"><Settings2 /></button>
         <button className="icon-btn" onClick={random} title="Pick a record for me"><Shuffle /></button>
         <button className="icon-btn" onClick={logout} title="Sign out"><LogOut /></button>
       </div>
     </header>
 
-    {view === 'library' && <section className="library-page">
-      <div className="hero"><div><p className="eyebrow">YOUR RECORD ROOM</p><h1>What are we spinning?</h1><p>Browse the shelf. Pick a jacket. Put the record on.</p></div><button className="hero-random" onClick={random}><Sparkles /> Pick a record for me</button></div>
-      <div className="library-tools">
-        <div className="searchbox"><Search size={18} /><input value={query} onChange={(event) => void doSearch(event.target.value)} placeholder="Search the collection" /></div>
-        <select value={sort} onChange={(event) => { const next = event.target.value as SortMode; setSort(next); setQuery(''); void loadAlbums(next); }}><option value="alphabeticalByArtist">Artist A–Z</option><option value="newest">Recently added</option><option value="recent">Recently played</option><option value="frequent">Most played</option><option value="starred">Favourites</option></select>
-      </div>
-      <div className="record-grid">{albums.map((album) => <article className="record-card" key={album.id}><button className="record-open" onClick={() => void openAlbum(album.id)}><div className="jacket"><Image src={cover(album.coverArt)} alt={`${album.name} cover`} fill sizes="(max-width:700px) 45vw, 220px" loading="lazy" unoptimized /><div className="vinyl-peek"><span /></div></div><div className="record-caption"><strong>{album.name}</strong><span>{album.artist}{album.year ? ` · ${album.year}` : ''}</span></div></button><button className="record-queue" onClick={() => addToChanger(album)} title="Add to record changer"><Layers3 size={15} /> Queue</button></article>)}</div>
-      {!albums.length && <div className="empty"><LibraryBig /><h2>No records found</h2><p>Try another search or view.</p></div>}
-      <footer className="app-version">NeedleDrop v{version}</footer>
-    </section>}
+    {view === 'library' && <CollectionBrowser albums={albums} query={query} sort={sort} version={version} onSearch={(value) => void doSearch(value)} onSort={(next) => void changeSort(next)} onOpen={(id) => void openAlbum(id)} onQueue={addToChanger} onRandom={() => void random()} />}
 
     {view === 'album' && selected && <AlbumView album={selected} meta={meta} playbackSides={selectedPlaybackSides} displaySides={selectedDisplaySides} strict={strict} currentId={current?.id} onBack={() => setView('library')} onPlaySide={playSelectedSide} onOpenTurntable={openTurntable} onOpenMetadata={() => setMetadataOpen(true)} onAddChanger={() => addToChanger(selected)} onStar={starSelected} artworkOrder={settings?.artworkSourceOrder} />}
 
@@ -448,8 +454,9 @@ export default function NeedleDropApp() {
 
     {needsFlip !== null && playingAlbum && <div className="flip-overlay"><div className="flip-card"><div className="big-record"><Disc3 size={170} /></div><p>{transitionText(fromLabel, toLabel).toUpperCase()}</p><h2>{fromLabel && toLabel && /^[A-Z]$/.test(fromLabel) && (fromLabel.charCodeAt(0) - 65) % 2 === 1 ? 'Change the record' : 'Flip the record'}</h2><span>{playingAlbum.artist} — {playingAlbum.name}</span><button onClick={flip}><RotateCcw /> {transitionText(fromLabel, toLabel)}</button></div></div>}
 
-    {selected && <MetadataDrawer album={selected} meta={meta} open={metadataOpen} onClose={() => setMetadataOpen(false)} onMeta={(next) => { setMeta(next); if (playingAlbum?.id === selected.id) setPlayingMeta(next); }} />}
+    {selected && <MetadataDrawer album={selected} meta={meta} open={metadataOpen} onClose={() => setMetadataOpen(false)} onMeta={(next) => { setMeta(next); setAlbums((items) => items.map((album) => album.id === selected.id ? { ...album, rating: next.rating } : album)); if (playingAlbum?.id === selected.id) setPlayingMeta(next); }} />}
     <SettingsPanel open={settingsOpen} settings={settings} version={version} onClose={() => setSettingsOpen(false)} onSaved={(next) => { applySettings(next); setSettingsOpen(false); }} />
+    <LibraryManager open={libraryManagerOpen} onClose={() => setLibraryManagerOpen(false)} onChanged={() => void loadAlbums(sort)} />
     <ChangerPanel open={changerOpen} items={changerQueue} enabled={settings?.changerEnabled !== false} onClose={() => setChangerOpen(false)} onMove={moveChanger} onRemove={(key) => setChangerQueue((items) => items.filter((item) => item.key !== key))} onPlayNow={(index) => { setChangerOpen(false); void advanceChanger(index); }} onClear={() => setChangerQueue([])} />
   </main>;
 }

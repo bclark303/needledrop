@@ -11,8 +11,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#11100d',
     orientation: 'any',
     icons: [
+      { src: '/needledrop-icon.png', sizes: '256x256', type: 'image/png', purpose: 'any' },
+      { src: '/needledrop-icon.png', sizes: '256x256', type: 'image/png', purpose: 'maskable' },
       { src: '/needledrop-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-      { src: '/needledrop-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
     ],
   };
 }

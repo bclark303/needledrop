@@ -19,7 +19,7 @@ import { getLastFmAlbumInfo } from './lastfm';
 import { searchDiscogs } from './discogs';
 
 let running: Promise<void> | null = null;
-const ARTWORK_RESOLVER_VERSION = 2;
+const ARTWORK_RESOLVER_VERSION = 3;
 
 function recentEnough(value?: string) {
   if (!value) return false;
@@ -183,15 +183,17 @@ export async function enrichAlbum(album: Album) {
     if (releaseGroupId) await importCoverArt(album.id, 'release-group', releaseGroupId, 'release-group');
   }
 
-  // If Navidrome and Cover Art Archive still leave the jacket empty, use a
-  // Discogs search result as an album-level artwork candidate. This does NOT
-  // select that result as the user's physical pressing; exact pressing choice
-  // remains a separate explicit action in the metadata drawer.
-  if (!hasArtwork(album.id, settings.artworkSourceOrder) && settings.discogsEnabled !== false && settings.discogsToken?.trim()) {
+  // For albums without embedded/Navidrome artwork, always keep a few Discogs
+  // search covers as secondary candidates. A dead CAA URL should never block a
+  // useful Discogs cover from being available at render time. Search results
+  // remain artwork-only fallbacks and never become the selected physical pressing.
+  const indexed = getAlbumRecord(album.id);
+  const needsDiscogsFallback = !indexed?.navidromeCoverArt || !hasArtwork(album.id, settings.artworkSourceOrder);
+  if (needsDiscogsFallback && settings.discogsEnabled !== false && settings.discogsToken?.trim()) {
     const results = await searchDiscogs(album.artist, album.name).catch(() => []);
     const usable = results
       .filter((result: Record<string, unknown>) => usableDiscogsImage(result.cover_image) || usableDiscogsImage(result.thumb))
-      .slice(0, 4);
+      .slice(0, 6);
     for (const result of usable) {
       const releaseIdValue = Number(result.id);
       const remoteUrl = usableDiscogsImage(result.cover_image) || usableDiscogsImage(result.thumb);
@@ -236,7 +238,7 @@ export async function enrichAlbum(album: Album) {
     }
   }
 
-  upsertMetadataValue(album.id, 'artworkResolverVersion', ARTWORK_RESOLVER_VERSION, 'needledrop', 'artwork-v2', 'system', true);
+  upsertMetadataValue(album.id, 'artworkResolverVersion', ARTWORK_RESOLVER_VERSION, 'needledrop', 'artwork-v3', 'system', true);
 
   const enrichedAt = new Date().toISOString();
   updateAlbumIdentity(album.id, { enrichmentStatus: 'complete', enrichmentError: undefined, enrichedAt });
@@ -253,6 +255,19 @@ function usableDiscogsImage(value: unknown) {
 }
 
 async function importCoverArt(albumId: string, scope: 'release' | 'release-group', sourceId: string, artScope: 'exact-release' | 'release-group') {
+  // CAA provides a stable "front" route even when the JSON image listing is
+  // temporarily unavailable. It is safe to keep this as a candidate because
+  // the artwork delivery route verifies the response and falls through on 404.
+  upsertArtworkCandidate({
+    albumId,
+    source: 'coverartarchive',
+    scope: artScope,
+    role: 'front',
+    sourceKey: `caa-front:${scope}:${sourceId}`,
+    sourceId,
+    remoteUrl: `https://coverartarchive.org/${scope}/${encodeURIComponent(sourceId)}/front-1200`,
+  });
+
   const images = await getCoverArtArchiveImages(scope, sourceId).catch(() => []);
   images.forEach((image, index) => {
     if (!image.image) return;

@@ -11,6 +11,7 @@ export type Album = {
   duration?: number;
   created?: string;
   starred?: string;
+  rating?: number;
 };
 
 export type Song = {
@@ -133,6 +134,7 @@ export type VinylMeta = {
   acquiredAt?: string;
   notes?: string;
   crate?: string;
+  rating?: number;
   sideBreakAfterTrack?: number;
   discogsReleaseId?: number;
   discogsMasterId?: number;

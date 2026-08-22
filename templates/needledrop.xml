@@ -9,11 +9,11 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/bclark303/needledrop/issues</Support>
   <Project>https://github.com/bclark303/needledrop</Project>
-  <Overview>NeedleDrop is a tactile virtual-vinyl client for Navidrome with a canonical SQLite metadata library, Discogs pressings, MusicBrainz identity matching, Cover Art Archive artwork, optional Last.fm enrichment, an animated record-player interface and automatic record-changer queue.</Overview>
+  <Overview>NeedleDrop is a tactile virtual-vinyl client for Navidrome with a canonical SQLite metadata library, library rescan and duplicate management, Discogs/MusicBrainz/Cover Art Archive/Last.fm enrichment, cover-grid and interactive record-shelf browsing, an animated turntable and automatic record changer.</Overview>
   <Category>MediaApp:Music</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/bclark303/needledrop/main/templates/needledrop.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/bclark303/needledrop/main/public/needledrop-icon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/bclark303/needledrop/main/public/needledrop-icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
@@ -30,7 +30,7 @@
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="UID used by NeedleDrop after startup. Unraid default nobody user is UID 99." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="GID used by NeedleDrop after startup. Unraid default users group is GID 100." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask for NeedleDrop persistent data." Type="Variable" Display="advanced" Required="true" Mask="false">002</Config>
-  <Config Name="MusicBrainz User Agent" Target="MUSICBRAINZ_USER_AGENT" Default="NeedleDrop/0.5.0 (https://github.com/bclark303/needledrop)" Mode="" Description="Initial User-Agent sent to MusicBrainz. Editable inside NeedleDrop Settings." Type="Variable" Display="advanced" Required="true" Mask="false">NeedleDrop/0.5.0 (https://github.com/bclark303/needledrop)</Config>
+  <Config Name="MusicBrainz User Agent" Target="MUSICBRAINZ_USER_AGENT" Default="NeedleDrop/0.6.0 (https://github.com/bclark303/needledrop)" Mode="" Description="Initial User-Agent sent to MusicBrainz. Editable inside NeedleDrop Settings." Type="Variable" Display="advanced" Required="true" Mask="false">NeedleDrop/0.6.0 (https://github.com/bclark303/needledrop)</Config>
   <Config Name="Settings Admin Users" Target="NEEDLEDROP_ADMIN_USERS" Default="" Mode="" Description="Optional comma-separated Navidrome usernames allowed to modify system settings. Blank allows any authenticated user, suitable for a single-user home install." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Data Directory" Target="NEEDLEDROP_DATA_DIR" Default="/data" Mode="" Description="Internal directory used by NeedleDrop for persistent application data." Type="Variable" Display="advanced" Required="true" Mask="false">/data</Config>
   <Config Name="Secure Cookies" Target="COOKIE_SECURE" Default="false" Mode="" Description="Use true only when NeedleDrop is accessed over HTTPS. Leave false for plain HTTP over LAN or Tailscale." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>

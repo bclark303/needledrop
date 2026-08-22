@@ -9,14 +9,18 @@ import './v4-3.css';
 import './v4-4.css';
 import './v4-5.css';
 import './v5.css';
+import './v6.css';
 
 export const metadata: Metadata = {
   title: { default: 'NeedleDrop', template: '%s · NeedleDrop' },
   description: 'A tactile virtual vinyl collection and animated turntable powered by Navidrome.',
   applicationName: 'NeedleDrop',
   icons: {
-    icon: [{ url: '/needledrop-icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/needledrop-icon.svg', type: 'image/svg+xml' }],
+    icon: [
+      { url: '/needledrop-icon.png', type: 'image/png', sizes: '256x256' },
+      { url: '/needledrop-icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: [{ url: '/needledrop-icon.png', type: 'image/png', sizes: '256x256' }],
   },
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'NeedleDrop' },
 };
