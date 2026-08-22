@@ -11,6 +11,7 @@ import './v4-5.css';
 import './v5.css';
 import './v6.css';
 import './v7.css';
+import './v7-2.css';
 
 export const metadata: Metadata = {
   title: { default: 'NeedleDrop', template: '%s · NeedleDrop' },
