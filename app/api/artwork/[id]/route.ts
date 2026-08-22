@@ -1,4 +1,5 @@
-import { getAlbumRecord, getCanonicalArtwork } from '@/lib/db';
+import { getAlbumRecord } from '@/lib/db';
+import { resolveCanonicalArtwork } from '@/lib/artwork-resolution';
 import { getStoredSettings } from '@/lib/settings';
 import { mediaUrl } from '@/lib/subsonic';
 import { APP_VERSION } from '@/lib/version';
@@ -9,7 +10,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   try {
     const settings = await getStoredSettings();
-    const choice = getCanonicalArtwork(id, settings.artworkSourceOrder);
+    const choice = resolveCanonicalArtwork(id, settings.artworkSourceOrder);
 
     if (choice.artwork?.remoteUrl) {
       const response = await fetchExternalArtwork(choice.artwork.remoteUrl, settings.musicbrainzUserAgent);
