@@ -1,5 +1,5 @@
 import { getAlbumRecord } from '@/lib/db';
-import { resolveCanonicalArtwork } from '@/lib/artwork-resolution';
+import { orderedArtworkChoices } from '@/lib/artwork-resolution';
 import { getStoredSettings } from '@/lib/settings';
 import { mediaUrl } from '@/lib/subsonic';
 import { APP_VERSION } from '@/lib/version';
@@ -10,21 +10,24 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
   try {
     const settings = await getStoredSettings();
-    const choice = resolveCanonicalArtwork(id, settings.artworkSourceOrder);
+    const album = getAlbumRecord(id);
+    const size = new URL(request.url).searchParams.get('size') || '1000';
+    const choices = orderedArtworkChoices(id, settings.artworkSourceOrder);
 
-    if (choice.artwork?.remoteUrl) {
-      const response = await fetchExternalArtwork(choice.artwork.remoteUrl, settings.musicbrainzUserAgent);
-      if (response) return response;
+    for (const choice of choices) {
+      if (choice.kind === 'candidate' && choice.artwork.remoteUrl) {
+        const response = await fetchExternalArtwork(choice.artwork.remoteUrl, settings.musicbrainzUserAgent, settings.discogsToken);
+        if (response) return response;
+      }
+
+      if (choice.kind === 'navidrome' && album?.navidromeCoverArt) {
+        const url = await mediaUrl('getCoverArt', album.navidromeCoverArt, { size });
+        const response = await fetch(url, { cache: 'no-store' }).catch(() => null);
+        if (response?.ok && response.body) return imageResponse(response, 3600, 'navidrome');
+      }
     }
 
-    if ((choice.useNavidrome || !choice.artwork) && choice.album?.navidromeCoverArt) {
-      const size = new URL(request.url).searchParams.get('size') || '1000';
-      const url = await mediaUrl('getCoverArt', choice.album.navidromeCoverArt, { size });
-      const response = await fetch(url, { cache: 'no-store' });
-      if (response.ok && response.body) return imageResponse(response, 3600);
-    }
-
-    return placeholderResponse(choice.album?.artist, choice.album?.title);
+    return placeholderResponse(album?.artist, album?.title);
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') return new Response('UNAUTHENTICATED', { status: 401 });
     const album = getAlbumRecord(id);
@@ -32,7 +35,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   }
 }
 
-async function fetchExternalArtwork(value: string, configuredUserAgent?: string) {
+async function fetchExternalArtwork(value: string, configuredUserAgent?: string, discogsToken?: string) {
   const url = new URL(value);
   const allowed = [
     'discogs.com',
@@ -41,22 +44,29 @@ async function fetchExternalArtwork(value: string, configuredUserAgent?: string)
   ].some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
   if (url.protocol !== 'https:' || !allowed) return null;
 
-  const response = await fetch(url, {
-    headers: { 'User-Agent': configuredUserAgent || `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)` },
-    cache: 'no-store',
-    redirect: 'follow',
-  });
-  if (!response.ok || !response.body) return null;
-  return imageResponse(response, 86400);
+  const headers: Record<string, string> = {
+    'User-Agent': configuredUserAgent || `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)`,
+    Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+  };
+  if ((url.hostname === 'discogs.com' || url.hostname.endsWith('.discogs.com')) && discogsToken?.trim()) {
+    headers.Authorization = `Discogs token=${discogsToken.trim()}`;
+  }
+
+  const response = await fetch(url, { headers, cache: 'no-store', redirect: 'follow' }).catch(() => null);
+  if (!response?.ok || !response.body) return null;
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.startsWith('image/')) return null;
+  return imageResponse(response, 86400, url.hostname);
 }
 
-function imageResponse(response: Response, maxAge: number) {
+function imageResponse(response: Response, maxAge: number, source: string) {
   const headers = new Headers();
   const contentType = response.headers.get('content-type');
   const contentLength = response.headers.get('content-length');
   if (contentType) headers.set('content-type', contentType);
   if (contentLength) headers.set('content-length', contentLength);
   headers.set('cache-control', `private, max-age=${maxAge}`);
+  headers.set('x-needledrop-artwork-source', source);
   return new Response(response.body, { status: 200, headers });
 }
 
@@ -85,7 +95,9 @@ function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavail
     status: 200,
     headers: {
       'content-type': 'image/svg+xml; charset=utf-8',
-      'cache-control': 'private, max-age=86400',
+      // Never let a temporary placeholder stick after background enrichment.
+      'cache-control': 'private, no-store, max-age=0',
+      'x-needledrop-artwork-source': 'placeholder',
     },
   });
 }
