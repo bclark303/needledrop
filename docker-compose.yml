@@ -11,14 +11,30 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       NEEDLEDROP_DATA_DIR: /data
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.7.0 (https://github.com/bclark303/needledrop)}
+      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.7.2 (https://github.com/bclark303/needledrop)}
       DISCOGS_TOKEN: ${DISCOGS_TOKEN:-}
       LASTFM_API_KEY: ${LASTFM_API_KEY:-}
       LIDARR_URL: ${LIDARR_URL:-}
       LIDARR_API_KEY: ${LIDARR_API_KEY:-}
+      NZB_REPAIR_PROVIDER: ${NZB_REPAIR_PROVIDER:-newznab}
+      NZB_INDEXER_URL: ${NZB_INDEXER_URL:-}
+      NZB_INDEXER_API_KEY: ${NZB_INDEXER_API_KEY:-}
+      NZB_INDEXER_CATEGORIES: ${NZB_INDEXER_CATEGORIES:-3000,3040}
+      SABNZBD_URL: ${SABNZBD_URL:-}
+      SABNZBD_API_KEY: ${SABNZBD_API_KEY:-}
+      SABNZBD_REPAIR_CATEGORY: ${SABNZBD_REPAIR_CATEGORY:-needledrop-repair}
+      NZB_REPAIR_STAGING_PATH: /repair
+      NZB_REPAIR_IMPORT_PATH: /music-repair
+      NZB_REPAIR_CLEANUP: ${NZB_REPAIR_CLEANUP:-true}
+      NZB_REPAIR_PREFER_LOSSLESS: ${NZB_REPAIR_PREFER_LOSSLESS:-true}
+      NZB_REPAIR_DIRECT_WRITE: ${NZB_REPAIR_DIRECT_WRITE:-false}
+      NZB_REPAIR_LIBRARY_PATH: /music
       NEEDLEDROP_ADMIN_USERS: ${NEEDLEDROP_ADMIN_USERS:-}
       PUID: ${PUID:-1001}
       PGID: ${PGID:-1001}
       UMASK: ${UMASK:-002}
     volumes:
       - ./data:/data
+      - ${NZB_REPAIR_STAGING_HOST:-./repair-staging}:/repair
+      - ${NZB_REPAIR_IMPORT_HOST:-./repair-music}:/music-repair
+      - ${NZB_REPAIR_LIBRARY_HOST:-./music-direct}:/music
