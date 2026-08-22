@@ -6,35 +6,28 @@ import type {
   Song,
   VinylMeta,
 } from '@/components/types';
+import { getDiscogsConfig } from './settings';
 
 const API = 'https://api.discogs.com';
-
 type DiscogsRelease = Record<string, any>;
 
-function userAgent() {
-  return process.env.MUSICBRAINZ_USER_AGENT || 'NeedleDrop/0.2.0 (https://github.com/bclark303/needledrop)';
+export async function discogsConfigured() {
+  const config = await getDiscogsConfig();
+  return config.enabled && Boolean(config.token);
 }
 
-function token() {
-  return process.env.DISCOGS_TOKEN?.trim();
-}
-
-export function discogsConfigured() {
-  return Boolean(token());
-}
-
-async function request(path: string, params?: URLSearchParams) {
-  const auth = token();
-  if (!auth) throw new Error('DISCOGS_NOT_CONFIGURED');
+async function request(path: string, params?: URLSearchParams, cache: RequestCache = 'no-store') {
+  const config = await getDiscogsConfig();
+  if (!config.enabled || !config.token) throw new Error('DISCOGS_NOT_CONFIGURED');
   const url = new URL(path, API);
   if (params) params.forEach((value, key) => url.searchParams.append(key, value));
   const response = await fetch(url, {
     headers: {
-      'User-Agent': userAgent(),
-      Authorization: `Discogs token=${auth}`,
+      'User-Agent': config.userAgent,
+      Authorization: `Discogs token=${config.token}`,
       Accept: 'application/vnd.discogs.v2.discogs+json',
     },
-    next: { revalidate: 86400 },
+    cache,
   });
   if (!response.ok) {
     const message = await response.text().catch(() => '');
@@ -44,7 +37,7 @@ async function request(path: string, params?: URLSearchParams) {
 }
 
 export async function searchDiscogs(artist: string, title: string) {
-  if (!discogsConfigured()) return [];
+  if (!(await discogsConfigured())) return [];
   const params = new URLSearchParams({
     type: 'release',
     format: 'vinyl',
@@ -58,6 +51,22 @@ export async function searchDiscogs(artist: string, title: string) {
 
 export async function getDiscogsRelease(releaseId: number): Promise<DiscogsRelease> {
   return request(`/releases/${releaseId}`);
+}
+
+export async function testDiscogsConnection(tokenOverride?: string) {
+  const current = await getDiscogsConfig();
+  const token = tokenOverride?.trim() || current.token;
+  if (!token) throw new Error('Discogs token is not configured');
+  const response = await fetch(`${API}/oauth/identity`, {
+    headers: {
+      'User-Agent': current.userAgent,
+      Authorization: `Discogs token=${token}`,
+      Accept: 'application/vnd.discogs.v2.discogs+json',
+    },
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`Discogs HTTP ${response.status}`);
+  return response.json();
 }
 
 function normalizedTitle(value = '') {
@@ -129,8 +138,7 @@ function mapTracks(tracks: DiscogsTrack[], songs: Song[]) {
       const song = songs[index];
       track.navidromeSongId = song.id;
       track.navidromeIndex = index;
-      const score = titleScore(track.title, song.title);
-      if (score < 0.3) warnings.push(`${track.position || index + 1}: “${track.title}” matched by order to “${song.title}”.`);
+      if (titleScore(track.title, song.title) < 0.3) warnings.push(`${track.position || index + 1}: “${track.title}” matched by order to “${song.title}”.`);
       unused.delete(index);
     });
   } else {
@@ -178,13 +186,9 @@ function groupSides(tracks: DiscogsTrack[]): DiscogsSide[] {
 
 function releaseCredits(release: DiscogsRelease): DiscogsCredit[] {
   const credits: DiscogsCredit[] = [];
-  for (const credit of release.extraartists || []) {
-    credits.push({ name: credit.anv || credit.name, role: credit.role, tracks: credit.tracks || undefined });
-  }
+  for (const credit of release.extraartists || []) credits.push({ name: credit.anv || credit.name, role: credit.role, tracks: credit.tracks || undefined });
   for (const track of release.tracklist || []) {
-    for (const credit of track.extraartists || []) {
-      credits.push({ name: credit.anv || credit.name, role: credit.role, tracks: track.position || credit.tracks || undefined });
-    }
+    for (const credit of track.extraartists || []) credits.push({ name: credit.anv || credit.name, role: credit.role, tracks: track.position || credit.tracks || undefined });
   }
   const seen = new Set<string>();
   return credits.filter((credit) => {

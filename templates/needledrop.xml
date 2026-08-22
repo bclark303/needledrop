@@ -7,28 +7,27 @@
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-
   <Support>https://github.com/bclark303/needledrop/issues</Support>
   <Project>https://github.com/bclark303/needledrop</Project>
-  <Overview>NeedleDrop is a vinyl-style client for Navidrome/OpenSubsonic. Browse your record collection, select exact Discogs pressings, use pressing-specific side/track layouts, and manually flip or change records in Vinyl Mode.</Overview>
+  <Overview>NeedleDrop is a tactile virtual-vinyl client for Navidrome with exact Discogs pressings, release artwork, an animated record-player interface, needle placement, selectable/fine-tunable turntable speed, and an automatic record-changer spindle queue.</Overview>
   <Category>MediaApp:Music</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/bclark303/needledrop/main/templates/needledrop.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/bclark303/needledrop/main/public/icon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/bclark303/needledrop/main/public/needledrop-icon.svg</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>A running Navidrome server reachable from this container. A Discogs personal access token is strongly recommended for exact pressing metadata. If /data is not writable, ensure /mnt/user/appdata/needledrop is writable by UID/GID 1001:1001.</Requires>
-
+  <Requires>A running Navidrome server reachable from this container. Environment connection values seed the first-run configuration; after login, an authorized user can manage Navidrome, Discogs, MusicBrainz and playback defaults from NeedleDrop Settings.</Requires>
   <Config Name="WebUI Port" Target="3000" Default="3030" Mode="tcp" Description="Host port used to access the NeedleDrop WebUI." Type="Port" Display="always" Required="true" Mask="false">3030</Config>
-  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/needledrop" Mode="rw" Description="Persistent NeedleDrop data, including pressing choices and cached Discogs release metadata." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/needledrop</Config>
-  <Config Name="Navidrome URL" Target="NAVIDROME_URL" Default="" Mode="" Description="URL NeedleDrop should use to reach Navidrome. Example: http://192.168.1.100:4533. Do not use localhost unless Navidrome is in the same container." Type="Variable" Display="always" Required="true" Mask="false"></Config>
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/needledrop" Mode="rw" Description="Persistent NeedleDrop settings, pressing choices and collection-specific metadata." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/needledrop</Config>
+  <Config Name="Navidrome URL" Target="NAVIDROME_URL" Default="" Mode="" Description="Initial Navidrome URL. Example: http://192.168.1.100:4533. This can be changed later inside NeedleDrop Settings." Type="Variable" Display="always" Required="true" Mask="false"></Config>
   <Config Name="Session Secret" Target="SESSION_SECRET" Default="" Mode="" Description="Required 64-character random hex secret used to encrypt NeedleDrop sessions. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"></Config>
-  <Config Name="Discogs Token" Target="DISCOGS_TOKEN" Default="" Mode="" Description="Discogs personal access token used for exact pressing selection, track/side layouts, release images, credits, notes and identifiers." Type="Variable" Display="always" Required="false" Mask="true"></Config>
-  <Config Name="MusicBrainz User Agent" Target="MUSICBRAINZ_USER_AGENT" Default="NeedleDrop/0.2.0 (https://github.com/bclark303/needledrop)" Mode="" Description="User-Agent sent to MusicBrainz and used to identify NeedleDrop API requests." Type="Variable" Display="advanced" Required="true" Mask="false">NeedleDrop/0.2.0 (https://github.com/bclark303/needledrop)</Config>
+  <Config Name="Discogs Token" Target="DISCOGS_TOKEN" Default="" Mode="" Description="Optional initial Discogs personal access token. It can also be entered or replaced inside NeedleDrop Settings." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="MusicBrainz User Agent" Target="MUSICBRAINZ_USER_AGENT" Default="NeedleDrop/0.4.0 (https://github.com/bclark303/needledrop)" Mode="" Description="Initial User-Agent sent to MusicBrainz. Editable inside NeedleDrop Settings." Type="Variable" Display="advanced" Required="true" Mask="false">NeedleDrop/0.4.0 (https://github.com/bclark303/needledrop)</Config>
+  <Config Name="Settings Admin Users" Target="NEEDLEDROP_ADMIN_USERS" Default="" Mode="" Description="Optional comma-separated Navidrome usernames allowed to modify system settings. Blank allows any authenticated user, suitable for a single-user home install." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Data Directory" Target="NEEDLEDROP_DATA_DIR" Default="/data" Mode="" Description="Internal directory used by NeedleDrop for persistent application data." Type="Variable" Display="advanced" Required="true" Mask="false">/data</Config>
   <Config Name="Secure Cookies" Target="COOKIE_SECURE" Default="false" Mode="" Description="Use true only when NeedleDrop is accessed over HTTPS. Leave false for plain HTTP over LAN or Tailscale." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
 </Container>

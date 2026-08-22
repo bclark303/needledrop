@@ -11,7 +11,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       NEEDLEDROP_DATA_DIR: /data
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.2.0}
+      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.4.0 (https://github.com/bclark303/needledrop)}
       DISCOGS_TOKEN: ${DISCOGS_TOKEN:-}
+      NEEDLEDROP_ADMIN_USERS: ${NEEDLEDROP_ADMIN_USERS:-}
     volumes:
       - ./data:/data
