@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, CheckCircle2, Download, FileSearch, RefreshCw, Wrench } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FileSearch, FolderInput, RefreshCw, ShieldCheck, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type AvailabilityTrack = {
@@ -36,6 +36,14 @@ type RepairRequest = {
   updatedAt: string;
 };
 
+type DirectPromotion = {
+  repairId: number;
+  state: 'pending' | 'promoting' | 'complete' | 'partial' | 'blocked' | 'failed';
+  message?: string;
+  promotedTracks: string[];
+  fallbackTracks: string[];
+};
+
 type RepairCandidate = {
   id: string;
   title: string;
@@ -54,17 +62,22 @@ type Payload = {
   availability?: Availability;
   request?: LidarrRequest | null;
   repair?: RepairRequest | null;
+  directPromotion?: DirectPromotion | null;
   candidates?: RepairCandidate[];
   repairConfigured?: boolean;
+  directWriteEnabled?: boolean;
   canRequest?: boolean;
   releaseGroupMbid?: string;
   error?: string;
 };
 
+type DestinationMode = 'repair-library' | 'album-folder';
+
 export default function AvailabilityPanel({ albumId }: { albumId: string }) {
   const [data, setData] = useState<Payload | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [destinationMode, setDestinationMode] = useState<DestinationMode>('repair-library');
 
   useEffect(() => {
     let cancelled = false;
@@ -78,11 +91,12 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
     void load();
     const timer = window.setInterval(() => {
       const repairActive = data?.repair && !['ready', 'failed', 'partial'].includes(data.repair.state);
+      const directActive = data?.directPromotion && ['pending', 'promoting'].includes(data.directPromotion.state);
       const lidarrActive = data?.request && !['ready'].includes(data.request.state);
-      if (repairActive || lidarrActive) void load();
+      if (repairActive || directActive || lidarrActive) void load();
     }, 4000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [albumId, data?.repair?.state, data?.request?.state]);
+  }, [albumId, data?.directPromotion?.state, data?.repair?.state, data?.request?.state]);
 
   async function action(name: 'search-nzb' | 'start-nzb' | 'request-lidarr' | 'recheck', candidateId?: string) {
     setBusy(candidateId ? `${name}:${candidateId}` : name);
@@ -90,7 +104,11 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
     const response = await fetch(`/api/availability/${encodeURIComponent(albumId)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: name, ...(candidateId ? { candidateId } : {}) }),
+      body: JSON.stringify({
+        action: name,
+        ...(candidateId ? { candidateId } : {}),
+        ...(name === 'start-nzb' ? { destinationMode } : {}),
+      }),
     });
     const payload = await response.json().catch(() => ({})) as Payload;
     setBusy('');
@@ -98,6 +116,7 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
       let message = payload.error || 'Availability action failed';
       if (message === 'LIDARR_NOT_CONFIGURED') message = 'Lidarr is not configured. Open Library Manager to connect it.';
       if (message.startsWith('NZB_REPAIR_')) message = 'NZB Track Repair is not configured. Open Library Manager and complete the indexer/SAB setup.';
+      if (message === 'DIRECT_REPAIR_NOT_ENABLED') message = 'Verified direct repair is disabled. Enable it in Library Manager or use the isolated repair library.';
       setError(message);
       return;
     }
@@ -132,6 +151,20 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
 
     {!!data?.candidates?.length && <div className="repair-candidates">
       <div className="repair-candidates-heading"><FileSearch size={17} /><div><strong>Inspected NZB candidates</strong><span>NeedleDrop downloaded only the NZB manifests. Nothing has been queued yet.</span></div></div>
+
+      <div className="repair-destination-choice">
+        <label className={destinationMode === 'repair-library' ? 'selected' : ''}>
+          <input type="radio" name={`repair-destination-${albumId}`} value="repair-library" checked={destinationMode === 'repair-library'} onChange={() => setDestinationMode('repair-library')} />
+          <ShieldCheck size={17} />
+          <span><strong>Isolated repair library</strong><small>Recommended. Keep verified tracks in NeedleDrop's dedicated Navidrome-visible repair folder.</small></span>
+        </label>
+        {data.directWriteEnabled && <label className={`direct ${destinationMode === 'album-folder' ? 'selected' : ''}`}>
+          <input type="radio" name={`repair-destination-${albumId}`} value="album-folder" checked={destinationMode === 'album-folder'} onChange={() => setDestinationMode('album-folder')} />
+          <FolderInput size={17} />
+          <span><strong>Existing album folder after verification</strong><small>Advanced. The safe copy is created first, then promoted only after a second stricter tag/title/duration check. Existing files are never overwritten.</small></span>
+        </label>}
+      </div>
+
       {data.candidates.map((candidate, index) => <article className={`repair-candidate ${index === 0 ? 'best' : ''}`} key={candidate.id}>
         <div className="repair-candidate-rank">{index === 0 ? 'BEST' : `${Math.round(candidate.score * 100)}%`}</div>
         <div className="repair-candidate-info">
@@ -144,11 +177,13 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
               : 'Manifest filenames are obfuscated or inconclusive; the extracted audio will be verified by filename and embedded tags.'}</small>
           {!!candidate.matchedTracks.length && <em>{candidate.matchedTracks.join(' · ')}</em>}
         </div>
-        <button className={index === 0 ? 'primary' : ''} disabled={repairBusy || Boolean(data.repair && !['failed', 'ready', 'partial'].includes(data.repair.state))} onClick={() => void action('start-nzb', candidate.id)}><Download size={15} /> {busy === `start-nzb:${candidate.id}` ? 'Sending…' : 'Download & repair'}</button>
+        <button className={index === 0 ? 'primary' : ''} disabled={repairBusy || Boolean(data.repair && !['failed', 'ready', 'partial'].includes(data.repair.state))} onClick={() => void action('start-nzb', candidate.id)}><Download size={15} /> {busy === `start-nzb:${candidate.id}` ? 'Sending…' : destinationMode === 'album-folder' ? 'Download & verify direct' : 'Download & repair'}</button>
       </article>)}
     </div>}
 
     {data?.repair && <div className={`repair-request-state ${data.repair.state}`}><Wrench size={16} /><div><strong>Track Repair · {repairLabel(data.repair.state)}</strong><span>{data.repair.message || data.repair.candidateTitle}</span>{!!data.repair.importedTracks?.length && <small>Retained: {data.repair.importedTracks.join(' · ')}</small>}</div></div>}
+
+    {data?.directPromotion && <div className={`repair-request-state direct-${data.directPromotion.state}`}><FolderInput size={16} /><div><strong>Direct album repair · {directPromotionLabel(data.directPromotion.state)}</strong><span>{data.directPromotion.message || 'Direct promotion requested.'}</span>{!!data.directPromotion.promotedTracks.length && <small>Promoted: {data.directPromotion.promotedTracks.join(' · ')}</small>}{!!data.directPromotion.fallbackTracks.length && <small>Kept isolated: {data.directPromotion.fallbackTracks.join(' · ')}</small>}</div></div>}
 
     {!full && data?.canRequest && <details className="lidarr-fallback"><summary>Lidarr fallback</summary><div><p>Use Lidarr if you prefer its album-level search/import workflow.</p><button disabled={Boolean(busy)} onClick={() => void action('request-lidarr')}><Download size={15} /> {busy === 'request-lidarr' ? 'Sending…' : 'Find with Lidarr'}</button></div></details>}
     {data?.request && <div className={`lidarr-request-state ${data.request.state}`}><Download size={16} /><div><strong>Lidarr · {lidarrLabel(data.request.state)}</strong><span>{data.request.message || 'Request submitted.'}</span></div></div>}
@@ -164,6 +199,16 @@ function repairLabel(state: string) {
   if (state === 'waiting-for-navidrome') return 'Waiting for Navidrome';
   if (state === 'partial') return 'Partially repaired';
   if (state === 'ready') return 'Ready';
+  if (state === 'failed') return 'Needs attention';
+  return state.replace(/-/g, ' ');
+}
+
+function directPromotionLabel(state: string) {
+  if (state === 'pending') return 'Waiting for safe repair';
+  if (state === 'promoting') return 'Running strict verification';
+  if (state === 'complete') return 'Promoted to album folder';
+  if (state === 'partial') return 'Partially promoted';
+  if (state === 'blocked') return 'Kept isolated';
   if (state === 'failed') return 'Needs attention';
   return state.replace(/-/g, ' ');
 }
