@@ -1,32 +1,56 @@
 # NeedleDrop
 
-NeedleDrop is a self-hosted, installable virtual-vinyl front end for Navidrome. It intentionally makes a digital music library feel more like a physical record collection: browse jackets, select a physical pressing, play its real sides, flip the record, and continue.
+NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets, select an exact pressing, put a record on an animated turntable, lower the needle, flip sides, and queue albums on an automatic changer spindle.
 
-## v0.2.0 features
+Current version: **v0.4.0**
 
-- Navidrome/OpenSubsonic authentication; no separate user database
-- Responsive record-shelf library for desktop, Android, iOS and TV-class browsers
-- PWA manifest and service worker
-- Album jackets with vinyl-sleeve interaction
-- Vinyl Mode (default) with mandatory physical-side transitions
-- Multi-LP side support (A/B/C/D/...); B → C prompts for a record change rather than a simple flip
-- Normal Mode for direct track selection
-- Search, Artist A–Z, recently added, recently played, frequently played, favourites and random-record selection
-- Streaming through a same-origin proxy with HTTP Range support
-- Media Session metadata/controls for supported browsers
-- Navidrome scrobbling after completed tracks
-- MusicBrainz vinyl release lookup as a fallback metadata source
-- Discogs exact-release search and selection when `DISCOGS_TOKEN` is configured
-- Full selected Discogs release fetch and local caching
-- Discogs pressing metadata: label, catalogue number, country, date, format, genres/styles and identifiers
-- Discogs release notes and release/track-level credits
-- Discogs release image gallery (front/back/labels/gatefold/booklet images when present for that release)
-- Discogs track positions and physical side grouping from A1/A2/B1... metadata
-- Automatic Discogs → Navidrome track mapping using title, duration, order and proximity
-- Mapping warnings when the selected pressing differs from the Navidrome audio files
-- Safe A/B playback fallback if the exact Discogs track layout cannot be mapped completely
-- Per-album personal metadata: vinyl colour, condition, acquired date, notes and crate/shelf
-- Docker/Unraid deployment
+## Release milestones
+
+### v0.2.1 — branding, versioning and in-app settings
+
+- App version shown in the UI and Settings panel.
+- New NeedleDrop icon family for the browser tab, PWA/phone install and Unraid Docker template.
+- In-app system settings for Navidrome, Discogs and MusicBrainz.
+- Connection-test buttons for all three services.
+- Server-side persisted settings under `/data/settings.json`.
+- Metadata and artwork source priority controls.
+- Per-album artwork selection between Navidrome and individual Discogs release images.
+- Optional `NEEDLEDROP_ADMIN_USERS` restriction for system settings.
+
+### v0.3.0 — animated turntable
+
+- Full graphical turntable playback surface.
+- Animated platter and record.
+- Tonearm position follows playback progress through the current side.
+- Click/tap the record grooves to place the needle approximately on the side.
+- Cue lift/lower control.
+- Start/stop motor control.
+- 33⅓ / 45 / 78 RPM selector.
+- ±8% fine pitch adjustment.
+- Optional real playback-rate/pitch simulation, including intentionally playing a 33⅓ RPM pressing at 45 RPM.
+- Discogs pressing metadata supplies the nominal record speed when available.
+
+### v0.4.0 — automatic record changer
+
+- Changer/spindle queue inspired by classic automatic turntables.
+- Add records from the shelf or album page.
+- Reorder, remove, clear or play a queued record immediately.
+- Queue persists in the browser across reloads.
+- In Vinyl Mode, side flips remain manual; after the final side, the next queued record drops automatically.
+- Multi-LP Discogs releases continue to use their actual A/B/C/D/etc. physical side boundaries.
+
+## Discogs integration
+
+When a Discogs personal access token is configured, NeedleDrop can:
+
+- search vinyl releases for a Navidrome album;
+- select and persist an exact Discogs Release ID;
+- import label, catalogue number, country, date, format and vinyl description;
+- import release notes, credits, identifiers, barcodes/matrix details and release images;
+- use exact Discogs track positions such as `A1`, `A2`, `B1`, `B2`, `C1` and `D1`;
+- map Discogs tracks to Navidrome audio files;
+- warn rather than silently reorder playback when the selected pressing differs from the available audio;
+- choose a specific Discogs image or Navidrome cover art per album.
 
 ## Architecture
 
@@ -36,90 +60,57 @@ Browser / installed PWA
         v
    NeedleDrop :3000
     |           |
+    |           +--> /data/settings.json
     |           +--> /data/needledrop.json
-    |                 - selected Discogs release ID
-    |                 - cached pressing metadata
-    |                 - side/track mappings
-    |                 - personal collection metadata
     |
-    +--> Navidrome /rest/* (library, artwork, stream, favourites, scrobble)
-    +--> Discogs API (exact physical release metadata)
-    +--> MusicBrainz (fallback pressing candidates)
+    +--> Navidrome /rest/*
+    +--> Discogs API
+    +--> MusicBrainz API
 ```
 
-NeedleDrop does **not** mount or modify the music library. Navidrome remains the source of truth for the collection and audio files. Discogs becomes the source of truth for the selected physical pressing once you choose one.
+NeedleDrop does not mount or modify the music library. Navidrome remains the source of truth for audio files and normal library metadata. NeedleDrop stores only its own settings and virtual-record metadata.
 
-## Quick start with the prebuilt Docker image
+## Docker / Unraid
 
-NeedleDrop publishes multi-architecture images to GitHub Container Registry:
+Image:
 
 ```text
 ghcr.io/bclark303/needledrop:latest
 ```
 
-1. Clone/download this repository, or copy `docker-compose.yml` and `.env.example` to a directory on your server.
-2. Copy `.env.example` to `.env`.
-3. Set `NAVIDROME_URL` to an address reachable **from inside the NeedleDrop container**.
-4. Generate a long random `SESSION_SECRET` (32+ characters).
-5. Add a Discogs personal access token to `DISCOGS_TOKEN` for exact pressing integration.
-6. Leave `COOKIE_SECURE=false` for direct HTTP/Tailscale access; set it to `true` after placing NeedleDrop behind HTTPS.
-7. Run:
+Recommended Unraid values:
+
+- Web UI port: host `3030` -> container `3000`
+- Appdata: `/mnt/user/appdata/needledrop` -> `/data`
+- `NAVIDROME_URL`: initial Navidrome address reachable from the container
+- `SESSION_SECRET`: random 32+ character secret; `openssl rand -hex 32` is recommended
+- `DISCOGS_TOKEN`: optional initial Discogs token
+- `MUSICBRAINZ_USER_AGENT`: optional initial MusicBrainz user-agent
+- `NEEDLEDROP_ADMIN_USERS`: optional comma-separated Navidrome usernames allowed to change system settings
+- `COOKIE_SECURE=false` for plain LAN/Tailscale HTTP; use `true` behind HTTPS
+
+The Unraid template is in `templates/needledrop.xml` and uses `public/needledrop-icon.svg` as the Docker icon.
+
+Connection values supplied by Docker are first-run/default values. After login, authorized users can change Navidrome, Discogs, MusicBrainz and playback defaults from the NeedleDrop Settings panel; saved values live in `/data/settings.json` and take precedence over the environment defaults.
+
+If `/data` is not writable, ensure the host directory is writable by container UID/GID `1001:1001`.
+
+## Updating
+
+After a successful GitHub Actions build:
 
 ```bash
-docker compose pull
-docker compose up -d
+docker pull ghcr.io/bclark303/needledrop:latest
 ```
 
-Open `http://<unraid-ip>:3030` and sign in with your existing Navidrome username/password.
+Then restart the container. In Unraid, **Force Update** performs the equivalent pull/recreate operation.
 
-## Unraid
+## Security notes
 
-A native Unraid v2 template is included at:
-
-```text
-templates/needledrop.xml
-```
-
-For a manual container:
-
-- Repository/Image: `ghcr.io/bclark303/needledrop:latest`
-- Network: `bridge` (or the same custom Docker network as Navidrome)
-- WebUI: `http://[IP]:[PORT:3000]/`
-- Host port: `3030` -> container port `3000`
-- Appdata: `/mnt/user/appdata/needledrop` -> `/data`
-- Variables: `NAVIDROME_URL`, `SESSION_SECRET`, `COOKIE_SECURE`, `MUSICBRAINZ_USER_AGENT`, and `DISCOGS_TOKEN`
-
-If Navidrome and NeedleDrop share a custom Docker network, `NAVIDROME_URL=http://navidrome:4533` is ideal. Otherwise use the Unraid server address and Navidrome's published port.
-
-For Tailscale-only remote access, browse to `http://<unraid-tailscale-ip>:3030`. Do not publish NeedleDrop directly to the public Internet without HTTPS/reverse-proxy hardening.
-
-## Discogs integration
-
-Set `DISCOGS_TOKEN` to a Discogs personal access token. The token remains server-side and is never sent to the browser.
-
-When you choose **Pressing & details**, NeedleDrop searches Discogs for vinyl release candidates. Selecting one causes NeedleDrop to fetch the full Discogs Release record and save a normalized snapshot locally. The saved physical-release metadata can include:
-
-- Discogs Release ID and Master ID
-- exact pressing title
-- country and release date
-- label and catalogue number
-- vinyl format/quantity/descriptions
-- genre/style
-- barcodes, matrix/runout and other identifiers
-- factual Discogs release notes
-- main and track-specific credits
-- release images supplied by Discogs
-- exact track positions such as `A1`, `A2`, `B1`, `B2`, `C1`, `D1`
-
-NeedleDrop maps Discogs tracks to Navidrome files using normalized title similarity, running time, order and proximity. If every Navidrome track maps exactly once, Discogs' physical side layout drives playback. If not, NeedleDrop shows the exact Discogs listing but uses its duration-based A/B fallback for safe audio playback and explains the mismatch in the details drawer.
-
-Discogs images are referenced from Discogs; NeedleDrop does not copy them into the music library.
-
-## Security model
-
-The login password is used once to derive standard Subsonic token authentication (`MD5(password + salt)`). NeedleDrop stores the resulting username/salt/token in an AES-256-GCM encrypted, HttpOnly session cookie. It does not persist the Navidrome password in its local data store.
-
-Use a unique, random `SESSION_SECRET`. Changing it signs all users out.
+- Navidrome passwords are not stored. Login derives standard Subsonic token authentication and stores it in an AES-256-GCM encrypted HttpOnly cookie.
+- Discogs tokens saved in the app are stored server-side in `/data/settings.json`; the file is created with mode `0600` where supported and the token is never returned to the browser.
+- With `NEEDLEDROP_ADMIN_USERS` blank, any authenticated Navidrome user can manage system settings. For multi-user installations, set it to one or more comma-separated Navidrome usernames.
+- Do not expose NeedleDrop directly to the public Internet over plain HTTP.
 
 ## Development
 
@@ -129,19 +120,4 @@ cp .env.example .env.local
 npm run dev
 ```
 
-## Roadmap
-
-- Discogs Master-first release selection and filtering by country/year/label
-- pressing confidence scoring and automatic best-match suggestion
-- explicit manual track mapper for unusual editions
-- explicit manual side editor
-- richer gatefold/back-cover/label presentation using selected-release images
-- custom crates and smart shelves
-- collection statistics and "haven't spun in a while"
-- TV-specific D-pad focus mode
-- offline album downloads
-- optional Navidrome metadata plugin once the plugin/UI integration story is mature enough
-
-## Docker image publishing
-
-GitHub Actions builds and publishes `ghcr.io/bclark303/needledrop` whenever `main` changes. A version tag such as `v0.2.0` also publishes corresponding semantic-version image tags. The workflow builds both `linux/amd64` and `linux/arm64`.
+The production Docker build uses Next.js standalone output and GitHub Actions publishes both `linux/amd64` and `linux/arm64` images.

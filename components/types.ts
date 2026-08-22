@@ -63,6 +63,11 @@ export type DiscogsIdentifier = {
   description?: string;
 };
 
+export type ArtworkSource = 'discogs' | 'navidrome';
+export type MetadataSource = 'discogs' | 'musicbrainz';
+export type PlaybackMode = 'vinyl' | 'normal';
+export type TurntableSpeed = 33.333 | 45 | 78;
+
 export type VinylMeta = {
   pressingId?: string;
   source?: 'discogs' | 'musicbrainz' | 'manual';
@@ -92,4 +97,26 @@ export type VinylMeta = {
   sides?: DiscogsSide[];
   trackMappingWarnings?: string[];
   discogsFetchedAt?: string;
+  artworkSource?: ArtworkSource;
+  discogsImageIndex?: number;
+};
+
+export type AppSettings = {
+  navidromeUrl: string;
+  discogsEnabled: boolean;
+  discogsTokenConfigured: boolean;
+  musicbrainzEnabled: boolean;
+  musicbrainzUserAgent: string;
+  metadataSourceOrder: MetadataSource[];
+  artworkSourceOrder: ArtworkSource[];
+  defaultPlaybackMode: PlaybackMode;
+  defaultTurntableSpeed: TurntableSpeed;
+  simulateSpeed: boolean;
+  changerEnabled: boolean;
+  canManage: boolean;
+};
+
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'canManage'>> & {
+  discogsToken?: string;
+  clearDiscogsToken?: boolean;
 };
