@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDiscogsRelease, normalizeDiscogsRelease } from '@/lib/discogs';
-import { saveMeta } from '@/lib/store';
+import { enrichAlbum } from '@/lib/enrichment';
+import { getMeta, saveMeta } from '@/lib/store';
 import { subsonic } from '@/lib/subsonic';
+
+export const runtime = 'nodejs';
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +21,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     ]);
 
     const normalized = normalizeDiscogsRelease(release, root.album.song || []);
-    const meta = await saveMeta(id, normalized);
+    await saveMeta(id, normalized);
+
+    // Promote the selected physical release into the canonical library immediately.
+    // Enrichment failures must not prevent a valid Discogs pressing from being saved.
+    await enrichAlbum(root.album).catch(() => {});
+    const meta = await getMeta(id);
     return NextResponse.json({ meta });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Failed';
