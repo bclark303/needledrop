@@ -5,7 +5,9 @@ export type SideRow = { position: string; title: string; duration?: string; song
 export type DisplaySide = { label: string; rows: SideRow[] };
 
 export function cover(id?: string, size = 500) {
-  return id ? `/api/cover/${encodeURIComponent(id)}?size=${size}` : '/needledrop-icon.svg';
+  if (!id) return '/needledrop-icon.svg';
+  if (id.startsWith('nd:')) return `/api/artwork/${encodeURIComponent(id.slice(3))}?size=${size}`;
+  return `/api/cover/${encodeURIComponent(id)}?size=${size}`;
 }
 
 export function fmt(sec = 0) {
@@ -78,7 +80,7 @@ export function buildDisplaySides(album: AlbumDetail, meta: VinylMeta | null, pl
   }));
 }
 
-export function selectedReleaseImage(meta: VinylMeta | null, album: AlbumDetail, artworkOrder: ArtworkSource[] = ['discogs', 'navidrome']) {
+export function selectedReleaseImage(meta: VinylMeta | null, album: AlbumDetail, artworkOrder: ArtworkSource[] = ['discogs', 'coverartarchive', 'navidrome']) {
   const explicit = meta?.artworkSource;
   const preferDiscogs = explicit ? explicit === 'discogs' : artworkOrder[0] === 'discogs';
   if (preferDiscogs && meta?.images?.length) {
