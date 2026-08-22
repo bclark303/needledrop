@@ -1,24 +1,38 @@
 # NeedleDrop
 
-NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets, select an exact pressing, put a record on an animated turntable, lower the needle, flip sides, and queue albums on an automatic changer spindle.
+NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or a record shelf, select an exact pressing, put a record on an animated turntable, lower the needle, flip sides, and queue albums on an automatic changer spindle.
 
-Current version: **v0.5.0**
+Current version: **v0.6.0**
 
-## v0.5.0 — canonical metadata library
+## v0.6.0 — library management and record shelf
 
-NeedleDrop now maintains its own authoritative collection database at `/data/needledrop.db` using SQLite. Navidrome remains the source of playable audio, while NeedleDrop stores the physical-release identity, artwork choices, external-source matches, provenance and local overrides used by the vinyl interface.
+- **Manual library rescan** asks Navidrome to scan its music folders, then rebuilds NeedleDrop's complete album index and starts enrichment for new/unresolved records.
+- **Duplicate management** detects conservative artist/title duplicate groups. Choose one Navidrome album ID to keep visible; other copies are hidden in NeedleDrop only. Merges are reversible and never delete or modify Navidrome data.
+- **Artwork resolver v3** retains multiple candidates and actually tries them in sequence instead of assuming a stored URL is valid.
+- Albums without embedded/Navidrome art keep Cover Art Archive and Discogs fallback candidates available at the same time, so a dead remote image can fall through to another source.
+- Discogs image requests use the configured Discogs token where applicable.
+- Generated "artwork not found" jackets are no longer cached, preventing an early placeholder from sticking after enrichment later succeeds.
+- Each album's artwork panel includes **Resolve again** for an immediate one-record metadata/artwork retry.
+- **My rating** adds a local 1–5 star rating that can be used to sort the collection.
+- New collection organization options: artist/band, album title, oldest/newest chronology, rating, recently added, recently played, most played and favourites.
+- Optional grouping by artist/band, decade or year.
+- New **Record Shelf** view displays albums spine-on; hover/focus pulls a jacket out so the front cover becomes visible.
+- A real PNG NeedleDrop icon is included for Unraid, browser/PWA metadata and other clients that do not render the previous SVG template icon.
+
+## v0.5.x — canonical metadata library
+
+NeedleDrop maintains its own authoritative collection database at `/data/needledrop.db` using SQLite. Navidrome remains the source of playable audio, while NeedleDrop stores the physical-release identity, artwork choices, external-source matches, provenance and local overrides used by the vinyl interface.
 
 - Existing `/data/needledrop.json` and `/data/settings.json` data is migrated automatically on first use.
 - Discogs remains the preferred exact physical-pressing source.
 - MusicBrainz supplies canonical release/release-group identity matching.
-- Cover Art Archive supplies exact-release and release-group artwork, allowing albums with no Navidrome artwork to receive a cover automatically.
+- Cover Art Archive supplies exact-release and release-group artwork.
 - Optional Last.fm integration supplies community tags, album summaries, listener/play-count context and matching identifiers.
 - Artwork candidates and source provenance are retained in SQLite instead of being overwritten by later refreshes.
 - Per-album artwork can be left on **Auto**, forced to raw Navidrome artwork, or pinned to a specific Discogs/Cover Art Archive candidate.
 - Settings allow metadata and artwork source priority to be reordered.
 - Automatic background enrichment can be enabled/disabled.
 - **Enrich entire library** scans all Navidrome album pages, with live progress in Settings.
-- Collection covers refresh automatically when a background enrichment pass finishes.
 
 ### Source authority
 
@@ -29,7 +43,7 @@ NeedleDrop now maintains its own authoritative collection database at `/data/nee
 | MusicBrainz | canonical release / release-group identity |
 | Cover Art Archive | exact-release and release-group artwork |
 | Last.fm | community tags, descriptive/popularity metadata |
-| NeedleDrop | final selected values, local overrides and artwork authority |
+| NeedleDrop | final selected values, local overrides, duplicate presentation and artwork authority |
 
 A manual selection in NeedleDrop always wins over automatic source priority.
 
@@ -68,16 +82,16 @@ Browser / installed PWA
         v
    NeedleDrop :3000
         |
-        +--> /data/needledrop.db  (canonical collection + settings)
+        +--> /data/needledrop.db  (canonical collection + settings + merges)
         |
-        +--> Navidrome /rest/*    (audio)
-        +--> Discogs API          (physical releases)
+        +--> Navidrome /rest/*    (audio/library scan)
+        +--> Discogs API          (physical releases + fallback artwork)
         +--> MusicBrainz API      (identity)
         +--> Cover Art Archive    (artwork)
         +--> Last.fm API          (optional metadata)
 ```
 
-NeedleDrop does not mount or modify the music library.
+NeedleDrop does not mount or modify the music library. Duplicate merges alter NeedleDrop's presentation only.
 
 ## Docker / Unraid
 
@@ -100,9 +114,9 @@ Recommended Unraid values:
 - `NEEDLEDROP_ADMIN_USERS`: optional comma-separated Navidrome usernames allowed to change system settings
 - `COOKIE_SECURE=false` for plain LAN/Tailscale HTTP; use `true` behind HTTPS
 
-The Unraid template is `templates/needledrop.xml`.
+The Unraid template is `templates/needledrop.xml` and references `public/needledrop-icon.png` for the Docker icon.
 
-Docker environment values seed first-run configuration. Authorized users can then manage Navidrome, Discogs, MusicBrainz, Cover Art Archive, Last.fm, source priority, enrichment and playback defaults from NeedleDrop Settings.
+Docker environment values seed first-run configuration. Authorized users can then manage Navidrome, Discogs, MusicBrainz, Cover Art Archive, Last.fm, source priority, enrichment and playback defaults from NeedleDrop Settings. Library rescan and duplicate controls live in the Library Manager button in the top bar.
 
 ## Updating
 
@@ -128,4 +142,4 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The production Docker build uses Next.js standalone output. Pull requests validate an AMD64 image; releases from `main` publish AMD64 and ARM64 images to GHCR.
+The production Docker build uses Next.js standalone output. Pull requests validate AMD64 and releases from `main` publish an AMD64 GHCR image. The browser/PWA client itself is architecture-independent.
