@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { AlertCircle, CheckCircle2, CopyMinus, Database, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import LidarrSettingsCard from './LidarrSettingsCard';
 import { cover } from './vinyl';
 
 type ScanStatus = {
@@ -81,7 +82,7 @@ export default function LibraryManager({
   return <div className="settings-backdrop" onClick={onClose}>
     <section className="library-manager" onClick={(event) => event.stopPropagation()} aria-label="Library management">
       <header className="settings-header">
-        <div><p className="eyebrow">COLLECTION MAINTENANCE</p><h2><Database size={24} /> Library manager</h2><span>Navidrome stays untouched; NeedleDrop manages its own view.</span></div>
+        <div><p className="eyebrow">COLLECTION MAINTENANCE</p><h2><Database size={24} /> Library manager</h2><span>Navidrome stays the playback library; NeedleDrop manages virtual releases, gaps and collection presentation.</span></div>
         <button className="drawer-x" onClick={onClose} aria-label="Close library manager"><X /></button>
       </header>
 
@@ -94,6 +95,8 @@ export default function LibraryManager({
           <span>{data?.status?.message || 'No manual scan has been run yet.'}</span>
         </div>
       </section>
+
+      <LidarrSettingsCard />
 
       <section className="library-manager-block">
         <div className="library-manager-heading"><div><h3>Possible duplicates</h3><p>Matches are deliberately conservative: artist and album title must normalize to the same value. Choose the copy NeedleDrop should keep visible.</p></div><strong>{duplicates.length}</strong></div>
