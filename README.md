@@ -2,7 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or a record shelf, select an exact pressing, put a record on an animated turntable, lower the needle, flip sides, and queue albums on an automatic changer spindle.
 
-Current version: **v0.7.2**
+Current version: **v0.7.3**
+
+## v0.7.3 — Repair search overrides
+
+Track Repair now supports persistent per-album overrides for libraries and Usenet releases whose names carry edition noise.
+
+- **Search album title** lets NeedleDrop search using the clean core album name without changing the album name shown in the collection. For example, a Navidrome entry such as `Dirt UK 1992 Remastered` can search simply as `Dirt`.
+- The clean search title becomes the expected album identity while candidate release names may still carry country, year, remaster/edition, codec and bit-depth suffixes.
+- **Repair folder name** independently controls the album directory created under the isolated `/music-repair` tree.
+- Both values are stored per album in NeedleDrop's SQLite database and can be edited from the album availability panel before a repair search.
+- Verified direct repair still promotes into the actual existing album directory reported by Navidrome; the folder override does not rename or replace a main-library folder.
 
 ## v0.7.2 — NZB Track Repair
 
@@ -72,6 +82,7 @@ NeedleDrop resolves the destination from song paths reported by Navidrome, refus
 - Albums report **Fully playable**, **Partially playable**, or **Collection only**.
 - Optional Lidarr integration can add/monitor an album and run an album search when tracks are missing.
 - v0.7.1 adds formatting-tolerant matching so metadata differences such as `God Smack` vs `Godsmack` and `Sick Man` vs `Sickman` do not create false missing-track reports.
+- v0.7.3 adds per-album Track Repair search-title and repair-folder overrides for edition/year/region naming differences.
 
 ## v0.6.x — library management and record shelf
 
