@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Album } from '@/components/types';
+import { indexAlbums } from '@/lib/db';
+import { maybeAutoEnrich } from '@/lib/enrichment';
 import { subsonic } from '@/lib/subsonic';
+
+export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,7 +15,10 @@ export async function GET(req: NextRequest) {
     const fromYear = req.nextUrl.searchParams.get('fromYear') || undefined;
     const toYear = req.nextUrl.searchParams.get('toYear') || undefined;
     const root = await subsonic('getAlbumList2', { type, size, offset, genre, fromYear, toYear });
-    return NextResponse.json({ albums: root.albumList2?.album ?? [] });
+    const albums = (root.albumList2?.album ?? []) as Album[];
+    indexAlbums(albums);
+    void maybeAutoEnrich(albums).catch(() => {});
+    return NextResponse.json({ albums: albums.map((album) => ({ ...album, coverArt: `nd:${album.id}` })) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed';
     return NextResponse.json({ error: msg }, { status: msg === 'UNAUTHENTICATED' ? 401 : 500 });
