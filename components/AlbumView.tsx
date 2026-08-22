@@ -5,6 +5,7 @@ import { Heart, Layers3, Play, Settings2, SlidersHorizontal } from 'lucide-react
 import type { AlbumDetail, ArtworkSource, Song, VinylMeta } from './types';
 import type { DisplaySide, PlaybackSide } from './vinyl';
 import { fmt, selectedReleaseImage } from './vinyl';
+import AvailabilityPanel from './AvailabilityPanel';
 
 export default function AlbumView({
   album,
@@ -36,6 +37,7 @@ export default function AlbumView({
   artworkOrder?: ArtworkSource[];
 }) {
   const art = selectedReleaseImage(meta, album, artworkOrder);
+  const firstPlayableSide = playbackSides.findIndex((side) => side.songs.length > 0);
   return <section className="album-page">
     <button className="back" onClick={onBack}>← Back to collection</button>
     <div className="album-stage">
@@ -47,7 +49,7 @@ export default function AlbumView({
         <p className="album-facts">{meta?.releaseYear || album.year || 'Unknown year'}{album.genre ? ` · ${album.genre}` : ''}{meta?.country ? ` · ${meta.country}` : ''}{meta?.catalogNumber ? ` · ${meta.catalogNumber}` : ''}</p>
         {meta?.formatDescription && <p className="format-line">{meta.formatDescription}</p>}
         <div className="album-actions">
-          <button className="primary" onClick={() => onPlaySide(0)}><Play /> Play Side {playbackSides[0]?.label || 'A'}</button>
+          <button className="primary" disabled={firstPlayableSide < 0} onClick={() => firstPlayableSide >= 0 && onPlaySide(firstPlayableSide)}><Play /> {firstPlayableSide >= 0 ? `Play Side ${playbackSides[firstPlayableSide]?.label || 'A'}` : 'No playable tracks'}</button>
           <button onClick={onOpenTurntable}><SlidersHorizontal /> Turntable</button>
           <button onClick={onAddChanger}><Layers3 /> Add to changer</button>
           <button onClick={onStar}><Heart /> Favourite</button>
@@ -57,6 +59,8 @@ export default function AlbumView({
         {meta?.discogsReleaseId && <div className="discogs-chip">Discogs release #{meta.discogsReleaseId}</div>}
       </div>
     </div>
+
+    <AvailabilityPanel albumId={album.id} />
 
     <div className={`track-sides ${displaySides.length > 2 ? 'many-sides' : ''}`}>
       {displaySides.map((side, sideIndex) => <TrackSide key={side.label} label={side.label} rows={side.rows} strict={strict} currentId={currentId} onPlay={(rowIndex, song) => {
@@ -84,6 +88,6 @@ function TrackSide({
   const duration = rows.reduce((sum, row) => sum + (row.song?.duration || 0), 0);
   return <div className="side">
     <div className="side-label"><span className="mini-record" /><span>SIDE {label}</span><em>{duration ? fmt(duration) : `${rows.length} tracks`}</em></div>
-    <ol>{rows.map((row, index) => <li key={`${row.position}-${row.title}-${index}`} className={currentId && row.song?.id === currentId ? 'active' : ''}><button disabled={!row.song || (strict && index > 0)} onClick={() => onPlay(index, row.song)}><span>{row.position || String(index + 1).padStart(2, '0')}</span><strong>{row.title}</strong><em>{row.duration || (row.song?.duration ? fmt(row.song.duration) : '')}</em></button></li>)}</ol>
+    <ol>{rows.map((row, index) => <li key={`${row.position}-${row.title}-${index}`} className={`${currentId && row.song?.id === currentId ? 'active' : ''}${!row.song ? ' missing-track' : ''}`}><button disabled={!row.song || (strict && index > 0)} onClick={() => onPlay(index, row.song)}><span>{row.position || String(index + 1).padStart(2, '0')}</span><strong>{row.title}</strong><em>{row.song ? (row.duration || (row.song.duration ? fmt(row.song.duration) : '')) : 'MISSING'}</em></button></li>)}</ol>
   </div>;
 }
