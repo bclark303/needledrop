@@ -63,8 +63,8 @@ export type DiscogsIdentifier = {
   description?: string;
 };
 
-export type ArtworkSource = 'discogs' | 'navidrome';
-export type MetadataSource = 'discogs' | 'musicbrainz';
+export type ArtworkSource = 'discogs' | 'coverartarchive' | 'navidrome';
+export type MetadataSource = 'discogs' | 'musicbrainz' | 'lastfm';
 export type PlaybackMode = 'vinyl' | 'normal';
 export type TurntableSpeed = 33.333 | 45 | 78;
 
@@ -97,6 +97,12 @@ export type VinylMeta = {
   sides?: DiscogsSide[];
   trackMappingWarnings?: string[];
   discogsFetchedAt?: string;
+  musicbrainzReleaseId?: string;
+  musicbrainzReleaseGroupId?: string;
+  lastfmTags?: string[];
+  lastfmSummary?: string;
+  lastfmUrl?: string;
+  enrichedAt?: string;
   artworkSource?: ArtworkSource;
   discogsImageIndex?: number;
 };
@@ -107,6 +113,10 @@ export type AppSettings = {
   discogsTokenConfigured: boolean;
   musicbrainzEnabled: boolean;
   musicbrainzUserAgent: string;
+  coverArtArchiveEnabled: boolean;
+  lastfmEnabled: boolean;
+  lastfmApiKeyConfigured: boolean;
+  autoEnrich: boolean;
   metadataSourceOrder: MetadataSource[];
   artworkSourceOrder: ArtworkSource[];
   defaultPlaybackMode: PlaybackMode;
@@ -116,7 +126,9 @@ export type AppSettings = {
   canManage: boolean;
 };
 
-export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'canManage'>> & {
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'lastfmApiKeyConfigured' | 'canManage'>> & {
   discogsToken?: string;
   clearDiscogsToken?: boolean;
+  lastfmApiKey?: string;
+  clearLastfmApiKey?: boolean;
 };
