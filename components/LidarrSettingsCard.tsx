@@ -89,7 +89,7 @@ export default function LidarrSettingsCard() {
   const options = data?.options;
   const canManage = data?.canManage !== false;
   return <section className="library-manager-block lidarr-settings-card">
-    <div className="library-manager-heading"><div><h3><Download size={18} /> Lidarr gap filling</h3><p>When a selected physical release is missing tracks, NeedleDrop can ask Lidarr to find a suitable album release, then automatically rescan Navidrome after new audio is imported.</p></div>{settings?.apiKeyConfigured && <span className="lidarr-connected"><CheckCircle2 size={15} /> Configured</span>}</div>
+    <div className="library-manager-heading"><div><h3><Download size={18} /> Lidarr fallback</h3><p>Optional album-level fallback. NeedleDrop can still ask Lidarr to find a suitable complete release if you do not want to use NZB Track Repair for a particular gap.</p></div>{settings?.apiKeyConfigured && <span className="lidarr-connected"><CheckCircle2 size={15} /> Configured</span>}</div>
 
     <div className="lidarr-form">
       <label><span>Lidarr URL</span><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="http://192.168.1.50:8686" disabled={!canManage} /></label>
