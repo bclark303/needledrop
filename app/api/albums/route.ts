@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
     const albums = (root.albumList2?.album ?? []) as Album[];
     indexAlbums(albums);
     void maybeAutoEnrich(albums).catch(() => {});
-    return NextResponse.json({ albums: albums.map((album) => ({ ...album, coverArt: `nd:${album.id}` })) });
+    return NextResponse.json({
+      albums: albums.map((album) => ({
+        ...album,
+        navidromeCoverArt: album.coverArt,
+        coverArt: `nd:${album.id}`,
+      })),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed';
     return NextResponse.json({ error: msg }, { status: msg === 'UNAUTHENTICATED' ? 401 : 500 });
