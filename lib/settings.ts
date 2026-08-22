@@ -1,6 +1,5 @@
-import fs from 'fs/promises';
-import path from 'path';
 import type { AppSettings, AppSettingsPatch, ArtworkSource, MetadataSource, PlaybackMode, TurntableSpeed } from '@/components/types';
+import { getSystemJson, setSystemJson } from './db';
 import { APP_VERSION, SETTINGS_SCHEMA_VERSION } from './version';
 
 export type StoredSettings = {
@@ -10,6 +9,10 @@ export type StoredSettings = {
   discogsToken?: string;
   musicbrainzEnabled?: boolean;
   musicbrainzUserAgent?: string;
+  coverArtArchiveEnabled?: boolean;
+  lastfmEnabled?: boolean;
+  lastfmApiKey?: string;
+  autoEnrich?: boolean;
   metadataSourceOrder?: MetadataSource[];
   artworkSourceOrder?: ArtworkSource[];
   defaultPlaybackMode?: PlaybackMode;
@@ -19,8 +22,8 @@ export type StoredSettings = {
   updatedAt?: string;
 };
 
-const dataDir = process.env.NEEDLEDROP_DATA_DIR || path.join(process.cwd(), 'data');
-const settingsFile = path.join(dataDir, 'settings.json');
+const METADATA_DEFAULT: MetadataSource[] = ['discogs', 'musicbrainz', 'lastfm'];
+const ARTWORK_DEFAULT: ArtworkSource[] = ['discogs', 'coverartarchive', 'navidrome'];
 
 function envDefaults(): StoredSettings {
   return {
@@ -30,8 +33,12 @@ function envDefaults(): StoredSettings {
     discogsToken: process.env.DISCOGS_TOKEN?.trim() || '',
     musicbrainzEnabled: true,
     musicbrainzUserAgent: process.env.MUSICBRAINZ_USER_AGENT?.trim() || `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)`,
-    metadataSourceOrder: ['discogs', 'musicbrainz'],
-    artworkSourceOrder: ['discogs', 'navidrome'],
+    coverArtArchiveEnabled: true,
+    lastfmEnabled: true,
+    lastfmApiKey: process.env.LASTFM_API_KEY?.trim() || '',
+    autoEnrich: true,
+    metadataSourceOrder: METADATA_DEFAULT,
+    artworkSourceOrder: ARTWORK_DEFAULT,
     defaultPlaybackMode: 'vinyl',
     defaultTurntableSpeed: 33.333,
     simulateSpeed: true,
@@ -39,32 +46,21 @@ function envDefaults(): StoredSettings {
   };
 }
 
-async function readStored(): Promise<StoredSettings> {
-  try {
-    const raw = JSON.parse(await fs.readFile(settingsFile, 'utf8')) as StoredSettings;
-    return raw && typeof raw === 'object' ? raw : { schemaVersion: SETTINGS_SCHEMA_VERSION };
-  } catch {
-    return { schemaVersion: SETTINGS_SCHEMA_VERSION };
-  }
-}
-
-async function writeStored(settings: StoredSettings) {
-  await fs.mkdir(dataDir, { recursive: true });
-  const tmp = `${settingsFile}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(settings, null, 2), { mode: 0o600 });
-  await fs.rename(tmp, settingsFile);
-  await fs.chmod(settingsFile, 0o600).catch(() => {});
+function withMissingSources<T extends string>(stored: T[] | undefined, defaults: T[]) {
+  const result = [...(stored || [])].filter((item, index, all) => defaults.includes(item) && all.indexOf(item) === index);
+  for (const source of defaults) if (!result.includes(source)) result.push(source);
+  return result.length ? result : defaults;
 }
 
 export async function getStoredSettings(): Promise<StoredSettings> {
   const defaults = envDefaults();
-  const stored = await readStored();
+  const stored = getSystemJson<StoredSettings>('app_settings') || { schemaVersion: SETTINGS_SCHEMA_VERSION };
   return {
     ...defaults,
     ...stored,
     schemaVersion: SETTINGS_SCHEMA_VERSION,
-    metadataSourceOrder: stored.metadataSourceOrder?.length ? stored.metadataSourceOrder : defaults.metadataSourceOrder,
-    artworkSourceOrder: stored.artworkSourceOrder?.length ? stored.artworkSourceOrder : defaults.artworkSourceOrder,
+    metadataSourceOrder: withMissingSources(stored.metadataSourceOrder, METADATA_DEFAULT),
+    artworkSourceOrder: withMissingSources(stored.artworkSourceOrder, ARTWORK_DEFAULT),
   };
 }
 
@@ -84,6 +80,14 @@ export async function getDiscogsConfig() {
   };
 }
 
+export async function getLastFmConfig() {
+  const settings = await getStoredSettings();
+  return {
+    enabled: settings.lastfmEnabled !== false,
+    apiKey: settings.lastfmApiKey?.trim() || '',
+  };
+}
+
 export async function getPublicSettings(username?: string | null): Promise<AppSettings> {
   const settings = await getStoredSettings();
   return {
@@ -92,8 +96,12 @@ export async function getPublicSettings(username?: string | null): Promise<AppSe
     discogsTokenConfigured: Boolean(settings.discogsToken?.trim()),
     musicbrainzEnabled: settings.musicbrainzEnabled !== false,
     musicbrainzUserAgent: settings.musicbrainzUserAgent || `NeedleDrop/${APP_VERSION}`,
-    metadataSourceOrder: settings.metadataSourceOrder || ['discogs', 'musicbrainz'],
-    artworkSourceOrder: settings.artworkSourceOrder || ['discogs', 'navidrome'],
+    coverArtArchiveEnabled: settings.coverArtArchiveEnabled !== false,
+    lastfmEnabled: settings.lastfmEnabled !== false,
+    lastfmApiKeyConfigured: Boolean(settings.lastfmApiKey?.trim()),
+    autoEnrich: settings.autoEnrich !== false,
+    metadataSourceOrder: settings.metadataSourceOrder || METADATA_DEFAULT,
+    artworkSourceOrder: settings.artworkSourceOrder || ARTWORK_DEFAULT,
     defaultPlaybackMode: settings.defaultPlaybackMode || 'vinyl',
     defaultTurntableSpeed: settings.defaultTurntableSpeed || 33.333,
     simulateSpeed: settings.simulateSpeed !== false,
@@ -115,7 +123,9 @@ export function canManageSettings(username?: string | null) {
 function cleanSourceOrder<T extends string>(value: unknown, allowed: readonly T[], fallback: T[]): T[] {
   if (!Array.isArray(value)) return fallback;
   const unique = value.filter((item): item is T => typeof item === 'string' && allowed.includes(item as T));
-  return [...new Set(unique)].length ? [...new Set(unique)] : fallback;
+  const cleaned = [...new Set(unique)];
+  for (const source of fallback) if (!cleaned.includes(source)) cleaned.push(source);
+  return cleaned.length ? cleaned : fallback;
 }
 
 export async function saveSettings(patch: AppSettingsPatch): Promise<StoredSettings> {
@@ -126,17 +136,22 @@ export async function saveSettings(patch: AppSettingsPatch): Promise<StoredSetti
   if (typeof patch.discogsEnabled === 'boolean') next.discogsEnabled = patch.discogsEnabled;
   if (typeof patch.musicbrainzEnabled === 'boolean') next.musicbrainzEnabled = patch.musicbrainzEnabled;
   if (typeof patch.musicbrainzUserAgent === 'string') next.musicbrainzUserAgent = patch.musicbrainzUserAgent.trim();
-  if (patch.metadataSourceOrder) next.metadataSourceOrder = cleanSourceOrder(patch.metadataSourceOrder, ['discogs', 'musicbrainz'] as const, ['discogs', 'musicbrainz']);
-  if (patch.artworkSourceOrder) next.artworkSourceOrder = cleanSourceOrder(patch.artworkSourceOrder, ['discogs', 'navidrome'] as const, ['discogs', 'navidrome']);
+  if (typeof patch.coverArtArchiveEnabled === 'boolean') next.coverArtArchiveEnabled = patch.coverArtArchiveEnabled;
+  if (typeof patch.lastfmEnabled === 'boolean') next.lastfmEnabled = patch.lastfmEnabled;
+  if (typeof patch.autoEnrich === 'boolean') next.autoEnrich = patch.autoEnrich;
+  if (patch.metadataSourceOrder) next.metadataSourceOrder = cleanSourceOrder(patch.metadataSourceOrder, ['discogs', 'musicbrainz', 'lastfm'] as const, METADATA_DEFAULT);
+  if (patch.artworkSourceOrder) next.artworkSourceOrder = cleanSourceOrder(patch.artworkSourceOrder, ['discogs', 'coverartarchive', 'navidrome'] as const, ARTWORK_DEFAULT);
   if (patch.defaultPlaybackMode === 'vinyl' || patch.defaultPlaybackMode === 'normal') next.defaultPlaybackMode = patch.defaultPlaybackMode;
   if (patch.defaultTurntableSpeed === 33.333 || patch.defaultTurntableSpeed === 45 || patch.defaultTurntableSpeed === 78) next.defaultTurntableSpeed = patch.defaultTurntableSpeed;
   if (typeof patch.simulateSpeed === 'boolean') next.simulateSpeed = patch.simulateSpeed;
   if (typeof patch.changerEnabled === 'boolean') next.changerEnabled = patch.changerEnabled;
   if (patch.clearDiscogsToken) next.discogsToken = '';
   else if (typeof patch.discogsToken === 'string' && patch.discogsToken.trim()) next.discogsToken = patch.discogsToken.trim();
+  if (patch.clearLastfmApiKey) next.lastfmApiKey = '';
+  else if (typeof patch.lastfmApiKey === 'string' && patch.lastfmApiKey.trim()) next.lastfmApiKey = patch.lastfmApiKey.trim();
 
   next.schemaVersion = SETTINGS_SCHEMA_VERSION;
   next.updatedAt = new Date().toISOString();
-  await writeStored(next);
+  setSystemJson('app_settings', next);
   return next;
 }

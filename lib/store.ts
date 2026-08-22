@@ -1,43 +1,51 @@
-import fs from 'fs/promises';
-import path from 'path';
 import type { VinylMeta as SharedVinylMeta } from '@/components/types';
+import { getAlbumMetaJson, setAlbumMetaJson, setArtworkMode, upsertArtworkCandidate } from './db';
 
 export type VinylMeta = SharedVinylMeta & {
   albumId: string;
   updatedAt: string;
 };
 
-type Store = { albums: Record<string, VinylMeta> };
-const dir = process.env.NEEDLEDROP_DATA_DIR || path.join(process.cwd(), 'data');
-const file = path.join(dir, 'needledrop.json');
-
-async function read(): Promise<Store> {
-  try {
-    return JSON.parse(await fs.readFile(file, 'utf8'));
-  } catch {
-    return { albums: {} };
-  }
-}
-
-async function write(data: Store) {
-  await fs.mkdir(dir, { recursive: true });
-  const tmp = file + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(data, null, 2));
-  await fs.rename(tmp, file);
-}
-
 export async function getMeta(id: string) {
-  return (await read()).albums[id] ?? null;
+  return getAlbumMetaJson<VinylMeta>(id);
 }
 
 export async function saveMeta(id: string, patch: Partial<VinylMeta>) {
-  const db = await read();
-  db.albums[id] = {
-    ...(db.albums[id] || {}),
+  const current = getAlbumMetaJson<VinylMeta>(id);
+  const next = {
+    ...(current || {}),
     ...patch,
     albumId: id,
     updatedAt: new Date().toISOString(),
   } as VinylMeta;
-  await write(db);
-  return db.albums[id];
+
+  setAlbumMetaJson(id, next);
+  syncArtworkSelection(id, next);
+  return next;
+}
+
+function syncArtworkSelection(albumId: string, meta: VinylMeta) {
+  if (meta.images?.length && meta.discogsReleaseId) {
+    meta.images.forEach((image, index) => {
+      if (!image.uri) return;
+      const chosen = meta.artworkSource === 'discogs' && meta.discogsImageIndex === index;
+      const isPrimary = image.type === 'primary' || index === 0;
+      const candidateId = upsertArtworkCandidate({
+        albumId,
+        source: 'discogs',
+        scope: 'exact-release',
+        role: isPrimary || chosen ? 'front' : 'other',
+        sourceKey: `discogs:${meta.discogsReleaseId}:${index}`,
+        sourceId: String(meta.discogsReleaseId),
+        remoteUrl: image.uri,
+        width: image.width,
+        height: image.height,
+        userSelected: chosen,
+      });
+      if (chosen) setArtworkMode(albumId, 'candidate', candidateId);
+    });
+  }
+
+  if (meta.artworkSource === 'navidrome') setArtworkMode(albumId, 'navidrome');
+  if (!meta.artworkSource) setArtworkMode(albumId, 'auto');
 }

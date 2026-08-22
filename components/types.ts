@@ -4,6 +4,7 @@ export type Album = {
   artist: string;
   artistId?: string;
   coverArt?: string;
+  navidromeCoverArt?: string;
   year?: number;
   genre?: string;
   songCount?: number;
@@ -63,10 +64,58 @@ export type DiscogsIdentifier = {
   description?: string;
 };
 
-export type ArtworkSource = 'discogs' | 'navidrome';
-export type MetadataSource = 'discogs' | 'musicbrainz';
+export type ArtworkSource = 'discogs' | 'coverartarchive' | 'navidrome';
+export type MetadataSource = 'discogs' | 'musicbrainz' | 'lastfm';
 export type PlaybackMode = 'vinyl' | 'normal';
 export type TurntableSpeed = 33.333 | 45 | 78;
+
+export type CanonicalArtworkCandidate = {
+  id: number;
+  albumId: string;
+  source: ArtworkSource | 'manual';
+  scope: 'exact-release' | 'release-group' | 'library' | 'manual';
+  role: string;
+  sourceKey: string;
+  sourceId?: string;
+  remoteUrl?: string;
+  width?: number;
+  height?: number;
+  userSelected: boolean;
+};
+
+export type AlbumLibraryRecord = {
+  albumId: string;
+  artist: string;
+  title: string;
+  year?: number;
+  navidromeCoverArt?: string;
+  musicbrainzReleaseId?: string;
+  musicbrainzReleaseGroupId?: string;
+  lastfmMbid?: string;
+  lastfmUrl?: string;
+  lastfmListeners?: number;
+  lastfmPlaycount?: number;
+  lastfmSummary?: string;
+  lastfmTags?: string[];
+  artworkMode: 'auto' | 'navidrome' | 'candidate';
+  canonicalArtworkId?: number;
+  enrichmentStatus?: string;
+  enrichmentError?: string;
+  enrichedAt?: string;
+};
+
+export type EnrichmentStatus = {
+  state: 'idle' | 'running' | 'complete' | 'error';
+  total: number;
+  completed: number;
+  matched: number;
+  artworkResolved: number;
+  failed: number;
+  currentAlbum?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  message?: string;
+};
 
 export type VinylMeta = {
   pressingId?: string;
@@ -97,6 +146,12 @@ export type VinylMeta = {
   sides?: DiscogsSide[];
   trackMappingWarnings?: string[];
   discogsFetchedAt?: string;
+  musicbrainzReleaseId?: string;
+  musicbrainzReleaseGroupId?: string;
+  lastfmTags?: string[];
+  lastfmSummary?: string;
+  lastfmUrl?: string;
+  enrichedAt?: string;
   artworkSource?: ArtworkSource;
   discogsImageIndex?: number;
 };
@@ -107,6 +162,10 @@ export type AppSettings = {
   discogsTokenConfigured: boolean;
   musicbrainzEnabled: boolean;
   musicbrainzUserAgent: string;
+  coverArtArchiveEnabled: boolean;
+  lastfmEnabled: boolean;
+  lastfmApiKeyConfigured: boolean;
+  autoEnrich: boolean;
   metadataSourceOrder: MetadataSource[];
   artworkSourceOrder: ArtworkSource[];
   defaultPlaybackMode: PlaybackMode;
@@ -116,7 +175,9 @@ export type AppSettings = {
   canManage: boolean;
 };
 
-export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'canManage'>> & {
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'lastfmApiKeyConfigured' | 'canManage'>> & {
   discogsToken?: string;
   clearDiscogsToken?: boolean;
+  lastfmApiKey?: string;
+  clearLastfmApiKey?: boolean;
 };

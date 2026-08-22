@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import ArtworkRefresh from '@/components/ArtworkRefresh';
 import './globals.css';
 import './discogs.css';
 import './v4-1.css';
@@ -7,6 +8,7 @@ import './v4-2.css';
 import './v4-3.css';
 import './v4-4.css';
 import './v4-5.css';
+import './v5.css';
 
 export const metadata: Metadata = {
   title: { default: 'NeedleDrop', template: '%s · NeedleDrop' },
@@ -22,5 +24,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: '#11100d', colorScheme: 'dark' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body>{children}<Script id="needledrop-service-worker" strategy="afterInteractive">{`if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}`}</Script></body></html>;
+  return <html lang="en"><body>{children}<ArtworkRefresh /><Script id="needledrop-service-worker" strategy="afterInteractive">{`if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}`}</Script></body></html>;
 }

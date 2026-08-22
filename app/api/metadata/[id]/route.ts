@@ -1,15 +1,22 @@
 import { NextResponse } from 'next/server';
+import type { Album } from '@/components/types';
+import { getAlbumRecord, getMetadataValues, indexAlbums, listArtwork } from '@/lib/db';
+import { maybeAutoEnrich } from '@/lib/enrichment';
 import { getMeta, saveMeta } from '@/lib/store';
 import { subsonic } from '@/lib/subsonic';
 import { discogsConfigured, searchDiscogs } from '@/lib/discogs';
 import { getStoredSettings } from '@/lib/settings';
 import { APP_VERSION } from '@/lib/version';
 
+export const runtime = 'nodejs';
+
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params;
     const root = await subsonic('getAlbum', { id });
-    const album = root.album;
+    const album = root.album as Album;
+    indexAlbums([album]);
+    void maybeAutoEnrich([album]).catch(() => {});
     const saved = await getMeta(id);
     const settings = await getStoredSettings();
     const q = encodeURIComponent(`release:\"${album.name}\" AND artist:\"${album.artist}\" AND format:vinyl`);
@@ -34,8 +41,15 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       discogs,
       discogsConfigured: configured,
       musicbrainzEnabled: settings.musicbrainzEnabled !== false,
-      metadataSourceOrder: settings.metadataSourceOrder || ['discogs', 'musicbrainz'],
-      artworkSourceOrder: settings.artworkSourceOrder || ['discogs', 'navidrome'],
+      coverArtArchiveEnabled: settings.coverArtArchiveEnabled !== false,
+      lastfmEnabled: settings.lastfmEnabled !== false,
+      lastfmConfigured: Boolean(settings.lastfmApiKey?.trim()),
+      metadataSourceOrder: settings.metadataSourceOrder || ['discogs', 'musicbrainz', 'lastfm'],
+      artworkSourceOrder: settings.artworkSourceOrder || ['discogs', 'coverartarchive', 'navidrome'],
+      library: getAlbumRecord(id),
+      artwork: listArtwork(id),
+      metadataValues: getMetadataValues(id),
+      navidromeCoverArt: album.coverArt,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed';
