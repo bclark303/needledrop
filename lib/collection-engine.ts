@@ -36,6 +36,15 @@ export type VirtualReleaseResolution = {
   availability: ReleaseAvailability;
 };
 
+export type LidarrRequestState =
+  | 'searching'
+  | 'downloading'
+  | 'search-complete'
+  | 'imported'
+  | 'waiting-for-navidrome'
+  | 'ready'
+  | 'unknown';
+
 export type LidarrRequestRecord = {
   id: number;
   albumId: string;
@@ -44,7 +53,7 @@ export type LidarrRequestRecord = {
   lidarrAlbumId: number;
   commandId?: number;
   baselineTrackFiles: number;
-  state: string;
+  state: LidarrRequestState;
   message?: string;
   scanTriggeredAt?: string;
   createdAt: string;
@@ -240,7 +249,7 @@ export async function refreshLatestLidarrRequest(albumId: string, availability?:
   const progress = await getLidarrProgress(current.lidarrAlbumId, current.commandId, current.baselineTrackFiles).catch(() => null);
   if (!progress) return current;
 
-  let nextState = progress.state;
+  let nextState: LidarrRequestState = progress.state;
   let message = progress.message;
   let scanTriggeredAt = current.scanTriggeredAt;
   if (progress.state === 'imported') {
@@ -255,7 +264,7 @@ export async function refreshLatestLidarrRequest(albumId: string, availability?:
   return getLatestLidarrRequest(albumId);
 }
 
-function updateRequest(id: number, state: string, message: string, scanTriggeredAt?: string) {
+function updateRequest(id: number, state: LidarrRequestState, message: string, scanTriggeredAt?: string) {
   db().prepare(`UPDATE lidarr_requests SET state=?, message=?, scan_triggered_at=COALESCE(?, scan_triggered_at), updated_at=? WHERE id=?`)
     .run(state, message, scanTriggeredAt || null, new Date().toISOString(), id);
 }
@@ -271,7 +280,7 @@ function mapRequest(row: Record<string, unknown>): LidarrRequestRecord {
     lidarrAlbumId: Number(row.lidarr_album_id),
     commandId: row.command_id == null ? undefined : Number(row.command_id),
     baselineTrackFiles: Number(row.baseline_track_files || 0),
-    state: String(row.state || 'unknown'),
+    state: String(row.state || 'unknown') as LidarrRequestState,
     message: row.message ? String(row.message) : undefined,
     scanTriggeredAt: row.scan_triggered_at ? String(row.scan_triggered_at) : undefined,
     createdAt: String(row.created_at || ''),
