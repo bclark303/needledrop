@@ -1,7 +1,6 @@
 import type { Album, VinylMeta } from '@/components/types';
 import {
   getAlbumRecord,
-  getCanonicalArtwork,
   getEnrichmentStatus,
   getMetadataValues,
   indexAlbums,
@@ -11,6 +10,7 @@ import {
   upsertMetadataValue,
   type EnrichmentStatus,
 } from './db';
+import { resolveCanonicalArtwork } from './artwork-resolution';
 import { getMeta, saveMeta } from './store';
 import { getStoredSettings } from './settings';
 import { findRelease, findReleaseGroup } from './musicbrainz';
@@ -36,7 +36,7 @@ function resolverCurrent(albumId: string) {
 }
 
 function hasArtwork(albumId: string, sourceOrder?: string[]) {
-  const artwork = getCanonicalArtwork(albumId, sourceOrder);
+  const artwork = resolveCanonicalArtwork(albumId, sourceOrder);
   return Boolean(artwork.artwork || artwork.useNavidrome);
 }
 
@@ -242,7 +242,7 @@ export async function enrichAlbum(album: Album) {
   updateAlbumIdentity(album.id, { enrichmentStatus: 'complete', enrichmentError: undefined, enrichedAt });
   await saveMeta(album.id, { musicbrainzReleaseId: releaseId, musicbrainzReleaseGroupId: releaseGroupId, ...lastfmPatch, enrichedAt });
 
-  const artwork = getCanonicalArtwork(album.id, settings.artworkSourceOrder);
+  const artwork = resolveCanonicalArtwork(album.id, settings.artworkSourceOrder);
   return { matched, artworkResolved: Boolean(artwork.artwork || artwork.useNavidrome) };
 }
 
