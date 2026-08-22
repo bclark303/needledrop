@@ -22,6 +22,7 @@ import {
   startNzbRepair,
   type MissingRepairTrack,
 } from '@/lib/nzb-repair';
+import { getAlbumRepairOverrides, saveAlbumRepairOverrides } from '@/lib/repair-overrides';
 import { getSession } from '@/lib/session';
 import { canManageSettings } from '@/lib/settings';
 import { getMeta, saveMeta } from '@/lib/store';
@@ -46,6 +47,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       request,
       repair,
       directPromotion,
+      repairOptions: publicRepairOptions(id, resolved.album.name),
       repairConfigured: nzbRepairConfigured(),
       directWriteEnabled: getPublicDirectRepairSettings().enabled,
       releaseGroupMbid: releaseGroupMbid(id, resolved.meta),
@@ -68,6 +70,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       action?: string;
       candidateId?: string;
       destinationMode?: 'repair-library' | 'album-folder';
+      searchTitle?: string;
+      folderName?: string;
     };
     const resolved = await resolve(id);
     const missing = repairTracks(resolved.availability);
@@ -84,8 +88,17 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         request: latest,
         repair,
         directPromotion,
+        repairOptions: publicRepairOptions(id, resolved.album.name),
         repairConfigured: nzbRepairConfigured(),
         directWriteEnabled: getPublicDirectRepairSettings().enabled,
+      });
+    }
+
+    if (body.action === 'save-repair-options') {
+      saveRepairOptions(id, body);
+      return NextResponse.json({
+        ok: true,
+        repairOptions: publicRepairOptions(id, resolved.album.name),
       });
     }
 
@@ -93,16 +106,19 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!missing.length) return NextResponse.json({ error: 'This selected release is already fully playable.' }, { status: 400 });
 
     if (body.action === 'search-nzb') {
+      saveRepairOptions(id, body);
+      const options = publicRepairOptions(id, resolved.album.name);
       const candidates = await searchNzbRepairCandidates({
         albumId: id,
         artist: resolved.album.artist,
-        albumTitle: resolved.album.name,
+        albumTitle: options.searchTitle,
         missingTracks: missing,
       });
       return NextResponse.json({
         ok: true,
         availability: resolved.availability,
         candidates,
+        repairOptions: options,
         repairConfigured: nzbRepairConfigured(),
         directWriteEnabled: getPublicDirectRepairSettings().enabled,
       });
@@ -110,13 +126,17 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
     if (body.action === 'start-nzb') {
       if (!body.candidateId) return NextResponse.json({ error: 'Choose an NZB candidate first.' }, { status: 400 });
+      saveRepairOptions(id, body);
+      const options = publicRepairOptions(id, resolved.album.name);
       const directRequested = body.destinationMode === 'album-folder';
       if (directRequested) await validateDirectRepairTarget(id);
 
       const repair = await startNzbRepair({
         albumId: id,
         artist: resolved.album.artist,
-        albumTitle: resolved.album.name,
+        // The repair title controls the safe-import directory. This lets an album whose
+        // Navidrome title includes release noise use a clean, user-selected folder name.
+        albumTitle: options.folderName,
         missingTracks: missing,
         candidateId: body.candidateId,
       });
@@ -127,6 +147,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         availability: resolved.availability,
         repair,
         directPromotion,
+        repairOptions: options,
         repairConfigured: true,
         directWriteEnabled: getPublicDirectRepairSettings().enabled,
       });
@@ -175,6 +196,23 @@ function repairTracks(availability: ReleaseAvailability): MissingRepairTrack[] {
       duration: track.duration,
       ordinal: track.ordinal,
     }));
+}
+
+function saveRepairOptions(id: string, body: { searchTitle?: string; folderName?: string }) {
+  saveAlbumRepairOverrides(id, {
+    searchTitle: typeof body.searchTitle === 'string' ? body.searchTitle : undefined,
+    folderName: typeof body.folderName === 'string' ? body.folderName : undefined,
+  });
+}
+
+function publicRepairOptions(id: string, albumTitle: string) {
+  const overrides = getAlbumRepairOverrides(id);
+  return {
+    searchTitle: overrides.searchTitle || albumTitle,
+    folderName: overrides.folderName || albumTitle,
+    searchTitleOverridden: Boolean(overrides.searchTitle),
+    folderNameOverridden: Boolean(overrides.folderName),
+  };
 }
 
 function releaseGroupMbid(id: string, meta: VinylMeta | null) {
