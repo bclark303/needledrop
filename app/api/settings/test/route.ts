@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session';
 import { authParams } from '@/lib/subsonic';
 import { canManageSettings, getStoredSettings } from '@/lib/settings';
 import { testDiscogsConnection } from '@/lib/discogs';
+import { testLastFm } from '@/lib/lastfm';
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -10,7 +11,13 @@ export async function POST(request: Request) {
   if (!canManageSettings(session.u)) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
 
   try {
-    const body = await request.json() as { service?: string; navidromeUrl?: string; discogsToken?: string; musicbrainzUserAgent?: string };
+    const body = await request.json() as {
+      service?: string;
+      navidromeUrl?: string;
+      discogsToken?: string;
+      musicbrainzUserAgent?: string;
+      lastfmApiKey?: string;
+    };
     const current = await getStoredSettings();
 
     if (body.service === 'navidrome') {
@@ -37,6 +44,13 @@ export async function POST(request: Request) {
       const response = await fetch(url, { headers: { 'User-Agent': userAgent }, cache: 'no-store' });
       if (!response.ok) throw new Error(`MusicBrainz HTTP ${response.status}`);
       return NextResponse.json({ ok: true, message: 'MusicBrainz responded successfully.' });
+    }
+
+    if (body.service === 'lastfm') {
+      const apiKey = body.lastfmApiKey?.trim() || current.lastfmApiKey?.trim() || '';
+      if (!apiKey) throw new Error('Last.fm API key is not configured');
+      const result = await testLastFm(apiKey);
+      return NextResponse.json({ ok: true, message: `Last.fm responded successfully${result.tags ? ` with ${result.tags} album tags` : ''}.` });
     }
 
     return NextResponse.json({ error: 'Unknown service' }, { status: 400 });
