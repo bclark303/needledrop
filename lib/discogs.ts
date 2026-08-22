@@ -7,6 +7,7 @@ import type {
   VinylMeta,
 } from '@/components/types';
 import { getDiscogsConfig } from './settings';
+import { titleSimilarity } from './text-match';
 
 const API = 'https://api.discogs.com';
 type DiscogsRelease = Record<string, any>;
@@ -69,29 +70,6 @@ export async function testDiscogsConnection(tokenOverride?: string) {
   return response.json();
 }
 
-function normalizedTitle(value = '') {
-  return value
-    .toLocaleLowerCase()
-    .normalize('NFKD')
-    .replace(/[’']/g, '')
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function titleScore(a = '', b = '') {
-  const left = normalizedTitle(a);
-  const right = normalizedTitle(b);
-  if (!left || !right) return 0;
-  if (left === right) return 1;
-  if (left.includes(right) || right.includes(left)) return 0.86;
-  const l = new Set(left.split(' ').filter(Boolean));
-  const r = new Set(right.split(' ').filter(Boolean));
-  const intersection = [...l].filter((x) => r.has(x)).length;
-  const union = new Set([...l, ...r]).size || 1;
-  return intersection / union;
-}
-
 function seconds(value?: string) {
   if (!value) return undefined;
   const parts = value.split(':').map(Number);
@@ -138,7 +116,7 @@ function mapTracks(tracks: DiscogsTrack[], songs: Song[]) {
       const song = songs[index];
       track.navidromeSongId = song.id;
       track.navidromeIndex = index;
-      if (titleScore(track.title, song.title) < 0.3) warnings.push(`${track.position || index + 1}: “${track.title}” matched by order to “${song.title}”.`);
+      if (titleSimilarity(track.title, song.title) < 0.3) warnings.push(`${track.position || index + 1}: “${track.title}” matched by order to “${song.title}”.`);
       unused.delete(index);
     });
   } else {
@@ -148,7 +126,7 @@ function mapTracks(tracks: DiscogsTrack[], songs: Song[]) {
       for (const navIndex of unused) {
         const song = songs[navIndex];
         const proximity = 1 - Math.min(Math.abs(navIndex - discogsIndex), 8) / 10;
-        const score = titleScore(track.title, song.title) * 0.68 + durationScore(track.duration, song.duration) * 0.22 + proximity * 0.1;
+        const score = titleSimilarity(track.title, song.title) * 0.68 + durationScore(track.duration, song.duration) * 0.22 + proximity * 0.1;
         if (score > bestScore) {
           bestScore = score;
           bestIndex = navIndex;
