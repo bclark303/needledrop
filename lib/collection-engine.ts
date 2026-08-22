@@ -4,6 +4,7 @@ import { getDatabasePath, indexAlbums } from './db';
 import { getLidarrProgress, type LidarrAlbumRequest } from './lidarr';
 import { startLibraryRescan } from './library';
 import { subsonic } from './subsonic';
+import { compactMatchText, titleSimilarity } from './text-match';
 
 export type PlaybackProvider = 'navidrome';
 
@@ -333,17 +334,29 @@ function bestLocalMatch(track: DiscogsTrack, album: AlbumDetail, songs: Song[], 
 }
 
 async function searchNavidrome(track: DiscogsTrack, album: AlbumDetail, used: Set<string>) {
-  const root = await subsonic('search3', {
-    query: `${album.artist} ${track.title}`,
-    artistCount: 0,
-    albumCount: 0,
-    songCount: 12,
-  });
-  const candidates = (root.searchResult3?.song || []) as Song[];
+  const compactTitle = compactMatchText(track.title);
+  const queries = [`${album.artist} ${track.title}`];
+  if (compactTitle && compactTitle !== track.title.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '')) {
+    queries.push(`${album.artist} ${compactTitle}`);
+  }
+
+  const candidatesById = new Map<string, Song>();
+  for (const query of queries) {
+    const root = await subsonic('search3', {
+      query,
+      artistCount: 0,
+      albumCount: 0,
+      songCount: 12,
+    });
+    for (const song of (root.searchResult3?.song || []) as Song[]) {
+      if (song?.id) candidatesById.set(song.id, song);
+    }
+  }
+
   let best: Song | undefined;
   let score = 0;
-  for (const song of candidates) {
-    if (!song?.id || used.has(song.id)) continue;
+  for (const song of candidatesById.values()) {
+    if (used.has(song.id)) continue;
     const next = matchScore(track, album, song);
     if (next > score) {
       score = next;
@@ -358,36 +371,11 @@ function acceptableMatch(track: DiscogsTrack, album: AlbumDetail, song: Song) {
 }
 
 function matchScore(track: DiscogsTrack, album: AlbumDetail, song: Song) {
-  const title = similarity(track.title, song.title);
-  const artist = similarity(album.artist, song.artist || '');
-  const albumName = similarity(album.name, song.album || '');
+  const title = titleSimilarity(track.title, song.title);
+  const artist = titleSimilarity(album.artist, song.artist || '');
+  const albumName = titleSimilarity(album.name, song.album || '');
   const duration = durationSimilarity(track.duration, song.duration);
   return title * 0.64 + artist * 0.2 + albumName * 0.08 + duration * 0.08;
-}
-
-function similarity(a = '', b = '') {
-  const left = normalize(a);
-  const right = normalize(b);
-  if (!left || !right) return 0;
-  if (left === right) return 1;
-  if (left.includes(right) || right.includes(left)) return 0.88;
-  const l = new Set(left.split(' ').filter(Boolean));
-  const r = new Set(right.split(' ').filter(Boolean));
-  const intersection = [...l].filter((value) => r.has(value)).length;
-  const union = new Set([...l, ...r]).size || 1;
-  return intersection / union;
-}
-
-function normalize(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[’']/g, '')
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
 }
 
 function durationSimilarity(value?: string, seconds?: number) {
