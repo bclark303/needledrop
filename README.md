@@ -17,11 +17,13 @@ NZB Track Repair is the preferred way to fill individual gaps in an otherwise pl
 - Only confidently matched requested tracks are copied into the dedicated repair-import folder; the rest of the temporary album is discarded when safe cleanup is enabled.
 - SAB jobs get a unique NeedleDrop repair token. Automatic cleanup only removes a completed staging directory when it is inside the configured repair root and its folder name contains that token.
 - After a successful repair, NeedleDrop triggers a Navidrome/library rescan and remaps the selected physical release.
+- **Verified direct album repair** is an advanced opt-in mode. A repaired track is still retained in the isolated repair library first, then a second stricter verification pass can promote it into the album's existing Navidrome folder. Existing files are never overwritten; tracks that do not pass the stricter check remain isolated.
+- Direct album repair must be enabled globally and then explicitly selected for an individual repair. The isolated repair library remains the default.
 - Lidarr remains available as an optional album-level fallback.
 
 ### Track Repair storage model
 
-NeedleDrop deliberately uses two narrow mounts instead of write access to the complete music library:
+The default model deliberately uses two narrow mounts instead of write access to the complete music library:
 
 ```text
 SABnzbd needledrop-repair completed folder
@@ -39,6 +41,28 @@ For Unraid, create a SAB category named `needledrop-repair`, give that category 
 
 Existing NeedleDrop containers installed before v0.7.2 need these two optional path mappings added manually in **Edit Container**; Force Update cannot add new mappings to an existing local Unraid template.
 
+### Advanced verified direct album repair
+
+If you intentionally want NeedleDrop to write repaired tracks into existing album folders, add a third mount containing the same host music root Navidrome scans and expose it to NeedleDrop at `/music` with write access. Then open **Library Manager → Verified direct album repair**, test the mount, and enable the feature.
+
+Direct mode is transactional rather than a straight SAB-to-library copy:
+
+```text
+SAB /repair
+   |
+   v
+isolated /music-repair copy
+   |
+   +--> second strict verification fails --> keep isolated
+   |
+   +--> second strict verification passes
+             |
+             v
+       existing album folder under /music
+```
+
+NeedleDrop resolves the destination from song paths reported by Navidrome, refuses any path outside the configured `/music` root, requires the destination album folder to be writable, and uses no-clobber file copies so an existing file is never replaced.
+
 ## v0.7.x — Collection Engine
 
 - A selected Discogs/MusicBrainz physical release is authoritative even when local audio is incomplete.
@@ -51,7 +75,7 @@ Existing NeedleDrop containers installed before v0.7.2 need these two optional p
 
 ## v0.6.x — library management and record shelf
 
-- **Manual library rescan** asks Navidrome to scan its music folders, then rebuilds NeedleDrop's complete album index and starts enrichment for new/unresolved records.
+- **Manual library rescan** asks Navidrome to scan its folders, then rebuilds NeedleDrop's complete album index and starts enrichment for new/unresolved records.
 - **Duplicate management** detects conservative artist/title duplicate groups. Choose one Navidrome album ID to keep visible; other copies are hidden in NeedleDrop only. Merges are reversible and never delete or modify Navidrome data.
 - **Artwork resolver v3** retains multiple candidates and actually tries them in sequence instead of assuming a stored URL is valid.
 - Albums without embedded/Navidrome art keep Cover Art Archive and Discogs fallback candidates available at the same time, so a dead remote image can fall through to another source.
@@ -139,10 +163,11 @@ Browser / installed PWA
         +--> Newznab / Hydra / Prowlarr  (optional repair search)
         +--> SABnzbd                    (optional temporary repair download)
         +--> /repair                    (repair staging only)
-        +--> /music-repair              (dedicated Navidrome-visible repair imports only)
+        +--> /music-repair              (default isolated repair imports)
+        +--> /music                     (advanced opt-in verified direct album writes)
 ```
 
-Duplicate merges alter NeedleDrop's presentation only. NZB Track Repair is the only feature that writes audio, and it writes solely to the explicitly configured dedicated repair-import mount.
+Duplicate merges alter NeedleDrop's presentation only. NZB Track Repair writes audio only to the explicitly configured repair mount by default. The main music library is untouched unless the separate verified direct-write feature is enabled, a writable `/music` mount is supplied, and direct album repair is explicitly selected for that repair.
 
 ## Docker / Unraid
 
@@ -169,8 +194,9 @@ Optional Track Repair mappings:
 
 - SAB dedicated completed folder → `/repair` (`rw` if automatic cleanup is enabled)
 - dedicated Navidrome-scanned repair music folder → `/music-repair` (`rw`)
+- advanced only: main Navidrome music root → `/music` (`rw`) for verified direct album repair
 
-Search-provider/SAB URLs and API keys can be stored from **Library Manager → NZB Track Repair**; the Unraid template and `.env.example` also provide bootstrap variables.
+Search-provider/SAB URLs and API keys can be stored from **Library Manager → NZB Track Repair**. Direct-write permission is configured separately under **Library Manager → Verified direct album repair**. The Unraid template and `.env.example` also provide bootstrap variables.
 
 The Unraid template is `templates/needledrop.xml` and references `public/needledrop-icon.png` for the Docker icon.
 
@@ -189,6 +215,7 @@ Then restart the container. In Unraid, **Force Update** performs the equivalent 
 - With `NEEDLEDROP_ADMIN_USERS` blank, any authenticated Navidrome user can manage system settings and initiate repairs. Set it for multi-user installations.
 - NZB repair candidate download URLs remain server-side and expire from NeedleDrop's candidate cache.
 - Track Repair uses a dedicated staging root and a dedicated import root; cleanup is refused unless the completed job folder is inside the configured staging root and carries the request's unique token.
+- Verified direct album repair is disabled by default, must be selected per repair, requires a second strict verification pass, refuses destination paths outside the configured library root, and never overwrites an existing file.
 - The container starts with only enough privilege to repair `/data`, then drops privileges before launching Node.
 - Do not expose NeedleDrop directly to the public Internet over plain HTTP.
 
