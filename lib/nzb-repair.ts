@@ -590,7 +590,9 @@ async function sabAddFile(settings: NzbRepairSettings, nzb: Uint8Array, filename
   form.set('nzbname', jobName);
   form.set('pp', '3');
   form.set('priority', '0');
-  form.set('nzbfile', new Blob([nzb], { type: 'application/x-nzb' }), filename);
+  const uploadBytes = new Uint8Array(nzb.byteLength);
+  uploadBytes.set(nzb);
+  form.set('nzbfile', new Blob([uploadBytes.buffer], { type: 'application/x-nzb' }), filename);
   const response = await fetch(`${url}/api`, { method: 'POST', body: form, cache: 'no-store' });
   if (!response.ok) throw new Error(`SABnzbd HTTP ${response.status}`);
   const payload = await response.json().catch(() => ({})) as { status?: boolean; nzo_ids?: string[]; error?: string };
@@ -723,10 +725,11 @@ function parseNewznabItem(item: any, base: string): SearchResult | null {
   const enclosure = item?.enclosure?.['@attributes'] || item?.enclosure || {};
   const download = item?.link || enclosure?.url || attrs.get('downloadurl') || '';
   if (!download) return null;
+  const guidValue = typeof item?.guid === 'string' ? item.guid : item?.guid?.['#text'] || item?.guid?.text;
   return {
     title: String(item?.title || ''),
     downloadUrl: absoluteUrl(String(download), base),
-    guid: typeof item?.guid === 'string' ? item.guid : String(item?.guid?.['#text'] || item?.guid?.text || '' || undefined),
+    guid: guidValue ? String(guidValue) : undefined,
     size: numberOrUndefined(item?.size || enclosure?.length || attrs.get('size')),
     indexer: item?.indexer ? String(item.indexer) : undefined,
     publishedAt: item?.pubDate ? String(item.pubDate) : undefined,
