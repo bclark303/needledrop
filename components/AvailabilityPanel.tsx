@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, CheckCircle2, Download, FileSearch, FolderInput, RefreshCw, ShieldCheck, Wrench } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FileSearch, FolderInput, RefreshCw, Save, ShieldCheck, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type AvailabilityTrack = {
@@ -58,12 +58,20 @@ type RepairCandidate = {
   manifestFiles: string[];
 };
 
+type RepairOptions = {
+  searchTitle: string;
+  folderName: string;
+  searchTitleOverridden: boolean;
+  folderNameOverridden: boolean;
+};
+
 type Payload = {
   availability?: Availability;
   request?: LidarrRequest | null;
   repair?: RepairRequest | null;
   directPromotion?: DirectPromotion | null;
   candidates?: RepairCandidate[];
+  repairOptions?: RepairOptions;
   repairConfigured?: boolean;
   directWriteEnabled?: boolean;
   canRequest?: boolean;
@@ -72,12 +80,16 @@ type Payload = {
 };
 
 type DestinationMode = 'repair-library' | 'album-folder';
+type ActionName = 'search-nzb' | 'start-nzb' | 'request-lidarr' | 'recheck' | 'save-repair-options';
 
 export default function AvailabilityPanel({ albumId }: { albumId: string }) {
   const [data, setData] = useState<Payload | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [destinationMode, setDestinationMode] = useState<DestinationMode>('repair-library');
+  const [searchTitle, setSearchTitle] = useState('');
+  const [folderName, setFolderName] = useState('');
+  const [optionsLoadedFor, setOptionsLoadedFor] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -85,8 +97,14 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
       const response = await fetch(`/api/availability/${encodeURIComponent(albumId)}`, { cache: 'no-store' }).catch(() => null);
       if (!response || cancelled) return;
       const payload = await response.json().catch(() => ({})) as Payload;
-      if (response.ok) setData((current) => ({ ...current, ...payload }));
-      else setError(payload.error || 'Could not check release availability');
+      if (response.ok) {
+        setData((current) => ({ ...current, ...payload }));
+        if (payload.repairOptions && optionsLoadedFor !== albumId) {
+          setSearchTitle(payload.repairOptions.searchTitle || '');
+          setFolderName(payload.repairOptions.folderName || '');
+          setOptionsLoadedFor(albumId);
+        }
+      } else setError(payload.error || 'Could not check release availability');
     }
     void load();
     const timer = window.setInterval(() => {
@@ -96,9 +114,9 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
       if (repairActive || directActive || lidarrActive) void load();
     }, 4000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [albumId, data?.directPromotion?.state, data?.repair?.state, data?.request?.state]);
+  }, [albumId, data?.directPromotion?.state, data?.repair?.state, data?.request?.state, optionsLoadedFor]);
 
-  async function action(name: 'search-nzb' | 'start-nzb' | 'request-lidarr' | 'recheck', candidateId?: string) {
+  async function action(name: ActionName, candidateId?: string) {
     setBusy(candidateId ? `${name}:${candidateId}` : name);
     setError('');
     const response = await fetch(`/api/availability/${encodeURIComponent(albumId)}`, {
@@ -107,6 +125,7 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
       body: JSON.stringify({
         action: name,
         ...(candidateId ? { candidateId } : {}),
+        ...(['search-nzb', 'start-nzb', 'save-repair-options'].includes(name) ? { searchTitle, folderName } : {}),
         ...(name === 'start-nzb' ? { destinationMode } : {}),
       }),
     });
@@ -119,6 +138,10 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
       if (message === 'DIRECT_REPAIR_NOT_ENABLED') message = 'Verified direct repair is disabled. Enable it in Library Manager or use the isolated repair library.';
       setError(message);
       return;
+    }
+    if (payload.repairOptions) {
+      setSearchTitle(payload.repairOptions.searchTitle || '');
+      setFolderName(payload.repairOptions.folderName || '');
     }
     setData((current) => ({ ...current, ...payload, ...(name === 'start-nzb' ? { candidates: [] } : {}) }));
   }
@@ -147,10 +170,22 @@ export default function AvailabilityPanel({ albumId }: { albumId: string }) {
 
     {!full && <div className="missing-track-list">{availability.missingTracks.map((track) => <div key={`${track.position}-${track.title}`}><span>{track.position || `Side ${track.side}`}</span><strong>{track.title}</strong></div>)}</div>}
 
+    {!full && data?.canRequest && <div className="repair-search-options">
+      <div className="repair-search-options-heading">
+        <div><strong>Repair search overrides</strong><span>Use the clean album name when Navidrome or a release title includes things like a country, year, remaster or edition suffix.</span></div>
+        <button disabled={Boolean(busy)} onClick={() => void action('save-repair-options')}><Save size={14} /> {busy === 'save-repair-options' ? 'Saving…' : 'Save'}</button>
+      </div>
+      <div className="repair-search-fields">
+        <label><span>Search album title</span><input value={searchTitle} onChange={(event) => setSearchTitle(event.target.value)} placeholder="Exact album name to search" /></label>
+        <label><span>Repair folder name</span><input value={folderName} onChange={(event) => setFolderName(event.target.value)} placeholder="Folder name under /music-repair" /></label>
+      </div>
+      <small>Indexer results may still contain extra release information such as <em>UK</em>, <em>1995</em>, <em>Remastered</em>, codec or bit-depth tags. The search title is the core name NeedleDrop expects. The folder override controls the isolated repair folder; direct repair still promotes into the existing Navidrome album folder.</small>
+    </div>}
+
     {!full && data?.canRequest && data.repairConfigured === false && <div className="repair-hint"><AlertTriangle size={15} /><span>Open Library Manager → NZB Track Repair to connect an indexer and SABnzbd and add the two repair mounts.</span></div>}
 
     {!!data?.candidates?.length && <div className="repair-candidates">
-      <div className="repair-candidates-heading"><FileSearch size={17} /><div><strong>Inspected NZB candidates</strong><span>NeedleDrop downloaded only the NZB manifests. Nothing has been queued yet.</span></div></div>
+      <div className="repair-candidates-heading"><FileSearch size={17} /><div><strong>Inspected NZB candidates</strong><span>Search: “{data.repairOptions?.searchTitle || searchTitle}”. NeedleDrop downloaded only the NZB manifests; nothing has been queued yet.</span></div></div>
 
       <div className="repair-destination-choice">
         <label className={destinationMode === 'repair-library' ? 'selected' : ''}>
