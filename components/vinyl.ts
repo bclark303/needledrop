@@ -82,15 +82,22 @@ export function buildDisplaySides(album: AlbumDetail, meta: VinylMeta | null, pl
 
 export function selectedReleaseImage(meta: VinylMeta | null, album: AlbumDetail, artworkOrder: ArtworkSource[] = ['discogs', 'coverartarchive', 'navidrome']) {
   const explicit = meta?.artworkSource;
-  const preferDiscogs = explicit ? explicit === 'discogs' : artworkOrder[0] === 'discogs';
-  if (preferDiscogs && meta?.images?.length) {
-    const requested = Number.isInteger(meta.discogsImageIndex) ? meta.discogsImageIndex! : -1;
-    if (requested >= 0 && meta.images[requested]?.uri) return `/api/metadata/${encodeURIComponent(album.id)}/image/${requested}`;
+  const requested = Number.isInteger(meta?.discogsImageIndex) ? meta!.discogsImageIndex! : -1;
+
+  // A specifically selected image from an exact Discogs release can be served
+  // directly. Other pinned candidates (including Discogs search fallbacks)
+  // should go through the canonical /api/artwork route instead.
+  if (explicit === 'discogs' && requested >= 0 && meta?.images?.[requested]?.uri) {
+    return `/api/metadata/${encodeURIComponent(album.id)}/image/${requested}`;
+  }
+
+  if (!explicit && artworkOrder[0] === 'discogs' && meta?.images?.length) {
     const primaryIndex = meta.images.findIndex((image) => image.type === 'primary' && image.uri);
     const firstIndex = meta.images.findIndex((image) => image.uri);
     const index = primaryIndex >= 0 ? primaryIndex : firstIndex;
     if (index >= 0) return `/api/metadata/${encodeURIComponent(album.id)}/image/${index}`;
   }
+
   return cover(album.coverArt, 1000);
 }
 
