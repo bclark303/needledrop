@@ -114,6 +114,14 @@ type SabJob = {
   nzo_id?: string;
 };
 
+type RepairUpdateRow = {
+  sab_nzo_id?: string | null;
+  state?: string | null;
+  message?: string | null;
+  imported_json?: string | null;
+  scan_triggered_at?: string | null;
+};
+
 let database: DatabaseSync | null = null;
 
 function db() {
@@ -871,18 +879,18 @@ function updateRepair(id: number, patch: {
   importedTracks?: string[];
   scanTriggeredAt?: string;
 }) {
-  const current = db().prepare('SELECT * FROM nzb_repair_requests WHERE id=?').get(id) as Record<string, unknown> | undefined;
+  const current = db().prepare('SELECT sab_nzo_id, state, message, imported_json, scan_triggered_at FROM nzb_repair_requests WHERE id=?').get(id) as RepairUpdateRow | undefined;
   if (!current) return;
   db().prepare(`
     UPDATE nzb_repair_requests SET
       sab_nzo_id=?, state=?, message=?, imported_json=?, scan_triggered_at=?, updated_at=?
     WHERE id=?
   `).run(
-    patch.sabNzoId ?? (current.sab_nzo_id || null),
-    patch.state ?? String(current.state),
-    patch.message ?? (current.message || null),
+    patch.sabNzoId ?? current.sab_nzo_id ?? null,
+    patch.state ?? current.state ?? 'queued',
+    patch.message ?? current.message ?? null,
     JSON.stringify(patch.importedTracks ?? parseJsonArray(current.imported_json)),
-    patch.scanTriggeredAt ?? (current.scan_triggered_at || null),
+    patch.scanTriggeredAt ?? current.scan_triggered_at ?? null,
     new Date().toISOString(),
     id,
   );
