@@ -1,4 +1,4 @@
-import { getCanonicalArtwork } from '@/lib/db';
+import { getAlbumRecord, getCanonicalArtwork } from '@/lib/db';
 import { getStoredSettings } from '@/lib/settings';
 import { mediaUrl } from '@/lib/subsonic';
 import { APP_VERSION } from '@/lib/version';
@@ -6,8 +6,8 @@ import { APP_VERSION } from '@/lib/version';
 export const runtime = 'nodejs';
 
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
   try {
-    const { id } = await ctx.params;
     const settings = await getStoredSettings();
     const choice = getCanonicalArtwork(id, settings.artworkSourceOrder);
 
@@ -23,10 +23,11 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
       if (response.ok && response.body) return imageResponse(response, 3600);
     }
 
-    return Response.redirect(new URL('/needledrop-icon.svg', request.url), 302);
+    return placeholderResponse(choice.album?.artist, choice.album?.title);
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') return new Response('UNAUTHENTICATED', { status: 401 });
-    return Response.redirect(new URL('/needledrop-icon.svg', request.url), 302);
+    const album = getAlbumRecord(id);
+    return placeholderResponse(album?.artist, album?.title);
   }
 }
 
@@ -56,4 +57,57 @@ function imageResponse(response: Response, maxAge: number) {
   if (contentLength) headers.set('content-length', contentLength);
   headers.set('cache-control', `private, max-age=${maxAge}`);
   return new Response(response.body, { status: 200, headers });
+}
+
+function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavailable') {
+  const titleLines = wrap(title, 22, 3);
+  const artistLines = wrap(artist, 28, 2);
+  const titleSvg = titleLines.map((line, index) => `<text x="72" y="${690 + index * 66}" class="title">${escapeXml(line)}</text>`).join('');
+  const artistSvg = artistLines.map((line, index) => `<text x="74" y="${885 + index * 38}" class="artist">${escapeXml(line)}</text>`).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <defs>
+    <radialGradient id="record" cx="48%" cy="42%" r="58%"><stop offset="0" stop-color="#34312b"/><stop offset="0.3" stop-color="#11100e"/><stop offset="0.72" stop-color="#24211d"/><stop offset="1" stop-color="#090908"/></radialGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2a241e"/><stop offset="1" stop-color="#151310"/></linearGradient>
+  </defs>
+  <rect width="1000" height="1000" fill="url(#paper)"/>
+  <rect x="32" y="32" width="936" height="936" rx="12" fill="none" stroke="#695b4b" stroke-width="2"/>
+  <circle cx="500" cy="330" r="245" fill="url(#record)" stroke="#080807" stroke-width="8"/>
+  <circle cx="500" cy="330" r="86" fill="#b46f56"/>
+  <circle cx="500" cy="330" r="12" fill="#171411"/>
+  <g fill="none" stroke="#4b4640" opacity="0.45"><circle cx="500" cy="330" r="216"/><circle cx="500" cy="330" r="198"/><circle cx="500" cy="330" r="180"/><circle cx="500" cy="330" r="162"/><circle cx="500" cy="330" r="144"/></g>
+  <text x="72" y="610" class="mark">NEEDLEDROP · ARTWORK NOT FOUND</text>
+  ${titleSvg}
+  ${artistSvg}
+  <style>.mark{fill:#a99b88;font:600 24px ui-sans-serif,system-ui,sans-serif;letter-spacing:4px}.title{fill:#f0e5d2;font:700 52px Georgia,serif}.artist{fill:#c9b9a2;font:400 28px ui-sans-serif,system-ui,sans-serif;letter-spacing:1px}</style>
+</svg>`;
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      'content-type': 'image/svg+xml; charset=utf-8',
+      'cache-control': 'private, max-age=86400',
+    },
+  });
+}
+
+function wrap(value: string, max: number, maxLines: number) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= max || !current) current = next;
+    else {
+      lines.push(current);
+      current = word;
+      if (lines.length === maxLines - 1) break;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  if (words.join(' ').length > lines.join(' ').length && lines.length) lines[lines.length - 1] = `${lines[lines.length - 1].replace(/…$/, '')}…`;
+  return lines;
+}
+
+function escapeXml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[character] || character));
 }
