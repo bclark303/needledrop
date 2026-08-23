@@ -52,13 +52,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 
 function legacyArtworkUrls(meta?: VinylMeta | null) {
   if (!meta?.images?.length) return [];
-  const ordered = [...meta.images.keys()];
+  const images = meta.images;
+  const ordered = [...images.keys()];
   const selected = Number.isInteger(meta.discogsImageIndex) ? Number(meta.discogsImageIndex) : -1;
-  const primary = meta.images.findIndex((image) => image.type === 'primary');
-  const preferred = [selected, primary, 0, ...ordered].filter((index, position, list) => index >= 0 && index < meta.images!.length && list.indexOf(index) === position);
+  const primary = images.findIndex((image) => image.type === 'primary');
+  const preferred = [selected, primary, 0, ...ordered].filter((index, position, list) => index >= 0 && index < images.length && list.indexOf(index) === position);
   const urls: string[] = [];
   for (const index of preferred) {
-    const image = meta.images[index];
+    const image = images[index];
     for (const value of [image?.uri, image?.uri150]) {
       if (value && !urls.includes(value)) urls.push(value);
     }
@@ -80,14 +81,19 @@ async function fetchExternalArtwork(value: string, configuredUserAgent?: string,
     'User-Agent': configuredUserAgent || `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)`,
     Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
   };
-  if ((url.hostname === 'discogs.com' || url.hostname.endsWith('.discogs.com')) && discogsToken?.trim()) {
+
+  // Discogs image URLs (normally i.discogs.com) are signed CDN URLs and the
+  // album-page proxy successfully fetches them without API Authorization. Only
+  // add the API token if a future candidate actually points at api.discogs.com.
+  if (url.hostname === 'api.discogs.com' && discogsToken?.trim()) {
     headers.Authorization = `Discogs token=${discogsToken.trim()}`;
   }
 
   const response = await fetch(url, { headers, cache: 'no-store', redirect: 'follow' }).catch(() => null);
   if (!response?.ok || !response.body) return null;
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.startsWith('image/')) return null;
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const acceptable = contentType.startsWith('image/') || contentType === 'application/octet-stream' || contentType === 'binary/octet-stream';
+  if (!acceptable) return null;
   return imageResponse(response, 86400, url.hostname);
 }
 
