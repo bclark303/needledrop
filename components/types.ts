@@ -70,6 +70,14 @@ export type MetadataSource = 'discogs' | 'musicbrainz' | 'lastfm';
 export type PlaybackMode = 'vinyl' | 'normal';
 export type TurntableSpeed = 33.333 | 45 | 78;
 
+export type HiFiSettings = {
+  volume: number;
+  balance: number;
+  bass: number;
+  mid: number;
+  treble: number;
+};
+
 export type CollectionSort = 'artist' | 'album' | 'yearAsc' | 'yearDesc' | 'rating' | 'newest' | 'recent' | 'frequent' | 'starred';
 export type CollectionViewMode = 'grid' | 'shelf' | 'flip';
 export type CollectionGroupMode = 'none' | 'artist' | 'decade' | 'year';
