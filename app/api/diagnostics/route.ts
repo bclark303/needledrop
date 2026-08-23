@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       if (!raw || typeof raw !== 'object') continue;
       const event = raw as Record<string, unknown>;
       const kind = typeof event.kind === 'string' ? event.kind.replace(/[^a-z0-9-]/gi, '-').slice(0, 60) : 'event';
-      if (recordDiagnostic(`client-${kind}`, { ...event, username: session.u })) captured += 1;
+      if (recordDiagnostic(`client-${kind}`, event)) captured += 1;
     }
     return NextResponse.json({ ok: true, captured, active: true });
   }
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       const status = startDiagnosticsCapture(body.clear !== false);
       try { await captureCurrentArtworkSnapshot('capture-start'); }
       catch (error) { recordDiagnostic('artwork-state-snapshot-failed', { reason: 'capture-start', error: error instanceof Error ? error.message : String(error) }, 'warn'); }
-      return NextResponse.json({ ok: true, status: getDiagnosticsStatus(), overview: await getDiagnosticsOverview() });
+      return NextResponse.json({ ok: true, status, overview: await getDiagnosticsOverview() });
     }
 
     if (action === 'stop') {
@@ -110,7 +110,9 @@ export async function POST(request: Request) {
     if (action === 'marker') {
       if (!diagnosticsActive()) return NextResponse.json({ error: 'Start a diagnostics capture first.' }, { status: 409 });
       const label = typeof body.label === 'string' ? body.label.slice(0, 200) : 'Manual marker';
-      recordDiagnostic('manual-marker', { label, username: session.u });
+      recordDiagnostic('manual-marker', { label });
+      try { await captureCurrentArtworkSnapshot(`marker:${label}`); }
+      catch (error) { recordDiagnostic('artwork-state-snapshot-failed', { reason: `marker:${label}`, error: error instanceof Error ? error.message : String(error) }, 'warn'); }
       return NextResponse.json({ ok: true, overview: await getDiagnosticsOverview() });
     }
 
