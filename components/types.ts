@@ -99,6 +99,7 @@ export type RecordRoomConfig = {
   activeShelfId?: string;
   featuredAlbumIds: string[];
   shelves: RecordRoomShelf[];
+  roomSlots: string[];
 };
 
 export type CanonicalArtworkCandidate = {

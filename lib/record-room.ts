@@ -15,6 +15,8 @@ const SORTS = new Set<CollectionSort>(['artist', 'album', 'yearAsc', 'yearDesc',
 const VIEWS = new Set<CollectionViewMode>(['grid', 'shelf', 'flip']);
 const GROUPS = new Set<CollectionGroupMode>(['none', 'artist', 'decade', 'year']);
 const PRESENTATIONS = new Set<RecordRoomShelfPresentation>(['shelf', 'crate']);
+const ALL_RECORDS_SLOT = '__all__';
+const DEFAULT_ROOM_SLOTS = [ALL_RECORDS_SLOT, 'smart-favourites', 'smart-five-star', 'smart-new-arrivals'];
 
 export const DEFAULT_RECORD_ROOM: RecordRoomConfig = {
   theme: 'audiophile',
@@ -27,6 +29,7 @@ export const DEFAULT_RECORD_ROOM: RecordRoomConfig = {
     { id: 'smart-five-star', name: 'Five-star records', kind: 'smart', presentation: 'shelf', rule: { type: 'rating', minimum: 5 } },
     { id: 'smart-new-arrivals', name: 'New arrivals', kind: 'smart', presentation: 'crate', rule: { type: 'recent', days: 60 } },
   ],
+  roomSlots: [...DEFAULT_ROOM_SLOTS],
 };
 
 function roomKey(username: string) {
@@ -51,6 +54,7 @@ export function normalizeRecordRoom(value: unknown): RecordRoomConfig {
     : DEFAULT_RECORD_ROOM.shelves.map((shelf) => ({ ...shelf }));
   const ids = new Set(shelves.map((shelf) => shelf.id));
   const activeShelfId = typeof input.activeShelfId === 'string' && ids.has(input.activeShelfId) ? input.activeShelfId : undefined;
+  const roomSlots = normalizeRoomSlots(input.roomSlots, ids);
 
   return {
     theme: THEMES.has(input.theme as RecordRoomTheme) ? input.theme as RecordRoomTheme : DEFAULT_RECORD_ROOM.theme,
@@ -60,7 +64,23 @@ export function normalizeRecordRoom(value: unknown): RecordRoomConfig {
     activeShelfId,
     featuredAlbumIds: uniqueStrings(input.featuredAlbumIds, 12),
     shelves,
+    roomSlots,
   };
+}
+
+function normalizeRoomSlots(value: unknown, shelfIds: Set<string>) {
+  const raw = Array.isArray(value) ? value : DEFAULT_ROOM_SLOTS;
+  const slots = raw.slice(0, 4).map((item, index) => {
+    if (item === ALL_RECORDS_SLOT) return ALL_RECORDS_SLOT;
+    if (typeof item === 'string' && shelfIds.has(item)) return item;
+    const fallback = DEFAULT_ROOM_SLOTS[index];
+    return fallback === ALL_RECORDS_SLOT || shelfIds.has(fallback) ? fallback : '';
+  });
+  while (slots.length < 4) {
+    const fallback = DEFAULT_ROOM_SLOTS[slots.length];
+    slots.push(fallback === ALL_RECORDS_SLOT || shelfIds.has(fallback) ? fallback : '');
+  }
+  return slots;
 }
 
 function normalizeShelf(value: unknown): RecordRoomShelf | null {
