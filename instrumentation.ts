@@ -1,24 +1,8 @@
 import type { Instrumentation } from 'next';
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  const globalState = globalThis as typeof globalThis & { __needledropDiagnosticHooks?: boolean };
-  if (globalState.__needledropDiagnosticHooks) return;
-  globalState.__needledropDiagnosticHooks = true;
-
-  const { recordDiagnostic, recordDiagnosticError } = await import('./lib/diagnostics');
-
-  process.on('uncaughtExceptionMonitor', (error, origin) => {
-    recordDiagnosticError('server-uncaught-exception', error, { origin });
-  });
-
-  process.on('warning', (warning) => {
-    recordDiagnostic('server-process-warning', {
-      name: warning.name,
-      message: warning.message,
-      stack: warning.stack,
-    }, 'warn');
-  });
+  // Request-level failures are captured below. Avoid process-wide listeners here
+  // because Next.js also bundles instrumentation for Edge-compatible runtimes.
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
@@ -35,7 +19,6 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
       routeType: context.routeType,
       renderSource: context.renderSource,
       revalidateReason: context.revalidateReason,
-      renderType: context.renderType,
     },
   });
 };
