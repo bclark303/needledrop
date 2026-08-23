@@ -268,7 +268,9 @@ function imageBytesResponse(bytes: Uint8Array, contentType: string, maxAge: numb
   headers.set('cache-control', `private, max-age=${maxAge}`);
   headers.set('x-needledrop-artwork-source', source);
   headers.set('x-needledrop-artwork-cache', 'passthrough');
-  return new Response(bytes, { status: 200, headers });
+  const body = new Uint8Array(bytes.byteLength);
+  body.set(bytes);
+  return new Response(body.buffer, { status: 200, headers });
 }
 
 function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavailable') {
