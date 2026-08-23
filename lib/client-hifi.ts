@@ -16,6 +16,7 @@ let bassFilter: BiquadFilterNode | null = null;
 let midFilter: BiquadFilterNode | null = null;
 let trebleFilter: BiquadFilterNode | null = null;
 let panner: StereoPannerNode | null = null;
+let graphPromise: Promise<void> | null = null;
 
 export function readHiFiSettings(): HiFiSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_HIFI_SETTINGS };
@@ -68,35 +69,49 @@ async function ensureGraph(audio: HTMLAudioElement) {
   }
   if (source && sourceElement !== audio) return;
 
+  if (!graphPromise) {
+    graphPromise = createGraph(audio).finally(() => {
+      graphPromise = null;
+    });
+  }
+  await graphPromise;
+}
+
+async function createGraph(audio: HTMLAudioElement) {
+  if (source) return;
   const WindowAudioContext = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!WindowAudioContext) return;
 
-  context = new WindowAudioContext();
-  source = context.createMediaElementSource(audio);
+  const nextContext = new WindowAudioContext();
+  const nextSource = nextContext.createMediaElementSource(audio);
+  const nextBass = nextContext.createBiquadFilter();
+  const nextMid = nextContext.createBiquadFilter();
+  const nextTreble = nextContext.createBiquadFilter();
+  const nextPanner = nextContext.createStereoPanner();
+
+  nextBass.type = 'lowshelf';
+  nextBass.frequency.value = 120;
+  nextMid.type = 'peaking';
+  nextMid.frequency.value = 1000;
+  nextMid.Q.value = 0.85;
+  nextTreble.type = 'highshelf';
+  nextTreble.frequency.value = 8500;
+
+  nextSource.connect(nextBass);
+  nextBass.connect(nextMid);
+  nextMid.connect(nextTreble);
+  nextTreble.connect(nextPanner);
+  nextPanner.connect(nextContext.destination);
+
+  context = nextContext;
+  source = nextSource;
   sourceElement = audio;
+  bassFilter = nextBass;
+  midFilter = nextMid;
+  trebleFilter = nextTreble;
+  panner = nextPanner;
 
-  bassFilter = context.createBiquadFilter();
-  bassFilter.type = 'lowshelf';
-  bassFilter.frequency.value = 120;
-
-  midFilter = context.createBiquadFilter();
-  midFilter.type = 'peaking';
-  midFilter.frequency.value = 1000;
-  midFilter.Q.value = 0.85;
-
-  trebleFilter = context.createBiquadFilter();
-  trebleFilter.type = 'highshelf';
-  trebleFilter.frequency.value = 8500;
-
-  panner = context.createStereoPanner();
-
-  source.connect(bassFilter);
-  bassFilter.connect(midFilter);
-  midFilter.connect(trebleFilter);
-  trebleFilter.connect(panner);
-  panner.connect(context.destination);
-
-  if (context.state === 'suspended') await context.resume();
+  if (nextContext.state === 'suspended') await nextContext.resume();
 }
 
 function clamp(value: number, min: number, max: number) {
