@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#302a39"/><stop offset=".55" stop-color="#171522"/><stop offset="1" stop-color="#0e0d15"/></linearGradient>
+    <radialGradient id="bulb"><stop stop-color="#f0a35a" stop-opacity=".28"/><stop offset="1" stop-color="#f0a35a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#wall)"/>
+  <circle cx="320" cy="180" r="380" fill="url(#bulb)"/>
+  <g transform="rotate(-3 400 300)" opacity=".34">
+    <rect x="120" y="100" width="300" height="390" rx="8" fill="#a55a47"/><rect x="145" y="128" width="250" height="300" fill="#28213a"/>
+    <circle cx="270" cy="278" r="92" fill="#d18d50"/><circle cx="270" cy="278" r="43" fill="#22202a"/>
+  </g>
+  <g transform="rotate(4 1250 300)" opacity=".3">
+    <rect x="1130" y="110" width="300" height="365" rx="8" fill="#6b865a"/><path d="M1170 405 L1280 170 L1390 405 Z" fill="#d1ad5d"/>
+  </g>
+  <g fill="#e0c16b" opacity=".22">
+    <circle cx="650" cy="160" r="7"/><circle cx="720" cy="120" r="5"/><circle cx="805" cy="175" r="6"/><circle cx="900" cy="125" r="5"/><circle cx="990" cy="170" r="7"/>
+  </g>
+  <rect y="805" width="1600" height="195" fill="#17100f"/>
+  <path d="M0 835 H1600" stroke="#70452e" stroke-width="16" opacity=".65"/>
+</svg>
