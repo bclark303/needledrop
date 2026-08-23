@@ -258,6 +258,14 @@ function stampResponse(response: Response, requestId: string, route: string) {
   const headers = new Headers(response.headers);
   headers.set('x-needledrop-artwork-request-id', requestId);
   headers.set('x-needledrop-artwork-route', route);
+  if (route === 'collection') {
+    // The upstream artwork bytes are cached server-side, but this endpoint is a
+    // mutable canonical pointer. Browser caching here can make a freshly pinned
+    // image appear not to take effect until an older Navidrome response expires.
+    headers.set('cache-control', 'private, no-store, max-age=0, must-revalidate');
+    headers.set('pragma', 'no-cache');
+    headers.set('expires', '0');
+  }
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 

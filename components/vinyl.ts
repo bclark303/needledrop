@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@/lib/version';
 import type { AlbumDetail, ArtworkSource, Song, VinylMeta, TurntableSpeed } from './types';
 
 export type PlaybackSide = { label: string; songs: Song[] };
@@ -6,7 +7,7 @@ export type DisplaySide = { label: string; rows: SideRow[] };
 
 export function cover(id?: string, size = 500) {
   if (!id) return '/needledrop-icon.svg';
-  if (id.startsWith('nd:')) return `/api/artwork/${encodeURIComponent(id.slice(3))}?size=${size}`;
+  if (id.startsWith('nd:')) return `/api/artwork/${encodeURIComponent(id.slice(3))}?size=${size}&app=${encodeURIComponent(APP_VERSION)}`;
   return `/api/cover/${encodeURIComponent(id)}?size=${size}`;
 }
 
