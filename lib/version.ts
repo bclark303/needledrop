@@ -1,3 +1,3 @@
 export const APP_NAME = 'NeedleDrop';
-export const APP_VERSION = '0.8.0';
+export const APP_VERSION = '0.8.1';
 export const SETTINGS_SCHEMA_VERSION = 2;
