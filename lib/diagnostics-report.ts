@@ -14,6 +14,8 @@ import { getStoredSettings } from './settings';
 import { subsonic } from './subsonic';
 import { APP_VERSION } from './version';
 
+const DEFAULT_ARTWORK_ORDER = ['discogs', 'coverartarchive', 'navidrome'];
+
 function hashOpaque(value?: string) {
   if (!value) return undefined;
   return crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
@@ -112,6 +114,7 @@ async function buildAlbumDiagnostic(album: Album, artworkSourceOrder: string[]) 
 
 export async function captureCurrentArtworkSnapshot(reason: string) {
   const settings = await getStoredSettings();
+  const artworkSourceOrder = settings.artworkSourceOrder || DEFAULT_ARTWORK_ORDER;
   const albums = await loadAllAlbums();
   const compact = albums.map((album) => {
     const record = getAlbumRecord(album.id);
@@ -130,7 +133,7 @@ export async function captureCurrentArtworkSnapshot(reason: string) {
       metaArtworkSource: meta?.artworkSource,
       discogsImageIndex: meta?.discogsImageIndex,
       orderedFirst: (() => {
-        const first = orderedArtworkChoices(album.id, settings.artworkSourceOrder)[0];
+        const first = orderedArtworkChoices(album.id, artworkSourceOrder)[0];
         return first?.kind === 'candidate' ? `${first.artwork.source}:${first.artwork.id}` : first?.kind;
       })(),
     };
@@ -160,6 +163,7 @@ export async function buildDiagnosticsExport() {
   const generatedAt = new Date().toISOString();
   const errors: string[] = [];
   const settings = await getStoredSettings();
+  const artworkSourceOrder = settings.artworkSourceOrder || DEFAULT_ARTWORK_ORDER;
   const events = readDiagnosticEvents();
   let albums: Album[] = [];
   try {
@@ -171,7 +175,7 @@ export async function buildDiagnosticsExport() {
   const albumDiagnostics = [];
   for (const album of albums) {
     try {
-      albumDiagnostics.push(await buildAlbumDiagnostic(album, settings.artworkSourceOrder));
+      albumDiagnostics.push(await buildAlbumDiagnostic(album, artworkSourceOrder));
     } catch (error) {
       errors.push(`Album ${album.id}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -206,7 +210,7 @@ export async function buildDiagnosticsExport() {
       lastfmAuthConfigured: Boolean(settings.lastfmApiKey?.trim()),
       autoEnrich: settings.autoEnrich,
       metadataSourceOrder: settings.metadataSourceOrder,
-      artworkSourceOrder: settings.artworkSourceOrder,
+      artworkSourceOrder,
       defaultPlaybackMode: settings.defaultPlaybackMode,
     },
     diagnostics: {
