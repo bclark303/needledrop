@@ -38,8 +38,9 @@ export function applyHiFiSettings(settings: HiFiSettings, activateTone = false) 
   if (!audio) return;
   audio.volume = normalized.volume;
 
-  const hasToneChange = normalized.balance !== 0 || normalized.bass !== 0 || normalized.mid !== 0 || normalized.treble !== 0;
-  if (!source && !activateTone && !hasToneChange) return;
+  // Keep normal HTMLAudio playback untouched until a user actually moves a tone/balance control.
+  // Once the graph exists, subsequent updates (including Reset) update it immediately.
+  if (!source && !activateTone) return;
 
   void ensureGraph(audio).then(() => {
     if (!bassFilter || !midFilter || !trebleFilter || !panner) return;
