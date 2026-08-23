@@ -1,7 +1,9 @@
+import crypto from 'crypto';
 import type { VinylMeta } from '@/components/types';
 import { fetchCachedExternalArtwork } from '@/lib/artwork-cache';
 import { orderedArtworkChoices } from '@/lib/artwork-resolution';
 import { getAlbumMetaJson, getAlbumRecord } from '@/lib/db';
+import { recordDiagnostic } from '@/lib/diagnostics';
 import { getStoredSettings } from '@/lib/settings';
 import { backfillArtworkCandidatesFromMeta } from '@/lib/store';
 import { mediaUrl } from '@/lib/subsonic';
@@ -10,43 +12,193 @@ export const runtime = 'nodejs';
 
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const requestId = crypto.randomUUID();
+  const started = Date.now();
   try {
     const settings = await getStoredSettings();
     const album = getAlbumRecord(id);
     const legacyMeta = getAlbumMetaJson<VinylMeta>(id);
-    const size = new URL(request.url).searchParams.get('size') || '1000';
+    const requestUrl = new URL(request.url);
+    const size = requestUrl.searchParams.get('size') || '1000';
 
-    // Keep the canonical artwork table self-healing. This also recovers very old
-    // saved Discogs image metadata that predates persisted Discogs release ids.
-    backfillArtworkCandidatesFromMeta(id, legacyMeta);
+    recordDiagnostic('artwork-request-start', {
+      requestId,
+      albumId: id,
+      route: 'collection',
+      size,
+      cacheBust: requestUrl.searchParams.has('_ndv'),
+      album: album ? {
+        artist: album.artist,
+        title: album.title,
+        artworkMode: album.artworkMode,
+        canonicalArtworkId: album.canonicalArtworkId,
+        navidromeCover: Boolean(album.navidromeCoverArt),
+        enrichmentStatus: album.enrichmentStatus,
+        enrichedAt: album.enrichedAt,
+      } : null,
+      legacy: legacyMeta ? {
+        artworkSource: legacyMeta.artworkSource,
+        discogsImageIndex: legacyMeta.discogsImageIndex,
+        discogsReleaseId: legacyMeta.discogsReleaseId,
+        imageCount: legacyMeta.images?.length || 0,
+      } : null,
+    });
+
+    const backfilled = backfillArtworkCandidatesFromMeta(id, legacyMeta);
     const choices = orderedArtworkChoices(id, settings.artworkSourceOrder);
+    recordDiagnostic('artwork-request-choices', {
+      requestId,
+      albumId: id,
+      backfilled,
+      artworkSourceOrder: settings.artworkSourceOrder,
+      choices: choices.map((choice) => choice.kind === 'navidrome'
+        ? { kind: 'navidrome' }
+        : {
+            kind: 'candidate',
+            id: choice.artwork.id,
+            source: choice.artwork.source,
+            scope: choice.artwork.scope,
+            role: choice.artwork.role,
+            sourceKey: choice.artwork.sourceKey,
+            userSelected: choice.artwork.userSelected,
+            hasRemoteUrl: Boolean(choice.artwork.remoteUrl),
+          }),
+    });
 
-    for (const choice of choices) {
+    for (const [choiceIndex, choice] of choices.entries()) {
       if (choice.kind === 'candidate' && choice.artwork.remoteUrl) {
-        const response = await fetchCachedExternalArtwork(choice.artwork.remoteUrl, settings.musicbrainzUserAgent, settings.discogsToken);
-        if (response) return response;
+        recordDiagnostic('artwork-request-candidate-attempt', {
+          requestId,
+          albumId: id,
+          choiceIndex,
+          candidateId: choice.artwork.id,
+          source: choice.artwork.source,
+          scope: choice.artwork.scope,
+          sourceKey: choice.artwork.sourceKey,
+        });
+        const response = await fetchCachedExternalArtwork(
+          choice.artwork.remoteUrl,
+          settings.musicbrainzUserAgent,
+          settings.discogsToken,
+          {
+            requestId,
+            albumId: id,
+            route: 'collection',
+            candidateSource: choice.artwork.source,
+            candidateId: choice.artwork.id,
+            candidateScope: choice.artwork.scope,
+          },
+        );
+        if (response) {
+          recordDiagnostic('artwork-request-served', {
+            requestId,
+            albumId: id,
+            route: 'collection',
+            logicalSource: choice.artwork.source,
+            source: response.headers.get('x-needledrop-artwork-source') || choice.artwork.source,
+            cache: response.headers.get('x-needledrop-artwork-cache') || 'unknown',
+            candidateId: choice.artwork.id,
+            choiceIndex,
+            contentType: response.headers.get('content-type'),
+            contentLength: response.headers.get('content-length'),
+            durationMs: Date.now() - started,
+          });
+          return stampResponse(response, requestId, 'collection');
+        }
       }
 
       if (choice.kind === 'navidrome' && album?.navidromeCoverArt) {
+        const attemptStarted = Date.now();
+        let networkError = '';
         const url = await mediaUrl('getCoverArt', album.navidromeCoverArt, { size });
-        const response = await fetch(url, { cache: 'no-store' }).catch(() => null);
-        if (response?.ok && response.body) return imageResponse(response, 3600, 'navidrome');
+        const response = await fetch(url, { cache: 'no-store' }).catch((error) => {
+          networkError = error instanceof Error ? error.message : String(error);
+          return null;
+        });
+        recordDiagnostic('artwork-navidrome-fetch-result', {
+          requestId,
+          albumId: id,
+          choiceIndex,
+          status: response?.status || 0,
+          ok: Boolean(response?.ok),
+          contentType: response?.headers.get('content-type'),
+          contentLength: response?.headers.get('content-length'),
+          networkError: networkError || undefined,
+          durationMs: Date.now() - attemptStarted,
+        }, response?.ok ? 'info' : 'warn');
+        if (response?.ok && response.body) {
+          const served = imageResponse(response, 3600, 'navidrome');
+          recordDiagnostic('artwork-request-served', {
+            requestId,
+            albumId: id,
+            route: 'collection',
+            logicalSource: 'navidrome',
+            source: 'navidrome',
+            cache: 'passthrough',
+            choiceIndex,
+            contentType: served.headers.get('content-type'),
+            contentLength: served.headers.get('content-length'),
+            durationMs: Date.now() - started,
+          });
+          return stampResponse(served, requestId, 'collection');
+        }
       }
     }
 
-    // Resolver-level compatibility fallback. Album view has historically been
-    // able to render meta.images directly; Collection view should never lose a
-    // usable saved cover merely because canonical migration metadata is sparse.
-    for (const value of legacyArtworkUrls(legacyMeta)) {
-      const response = await fetchCachedExternalArtwork(value, settings.musicbrainzUserAgent, settings.discogsToken);
-      if (response) return response;
+    const legacyUrls = legacyArtworkUrls(legacyMeta);
+    for (const [legacyIndex, value] of legacyUrls.entries()) {
+      recordDiagnostic('artwork-request-legacy-attempt', {
+        requestId,
+        albumId: id,
+        legacyIndex,
+      });
+      const response = await fetchCachedExternalArtwork(
+        value,
+        settings.musicbrainzUserAgent,
+        settings.discogsToken,
+        { requestId, albumId: id, route: 'collection', candidateSource: 'legacy-discogs', candidateId: legacyIndex },
+      );
+      if (response) {
+        recordDiagnostic('artwork-request-served', {
+          requestId,
+          albumId: id,
+          route: 'collection',
+          logicalSource: 'legacy-discogs',
+          source: response.headers.get('x-needledrop-artwork-source') || 'legacy-discogs',
+          cache: response.headers.get('x-needledrop-artwork-cache') || 'unknown',
+          legacyIndex,
+          contentType: response.headers.get('content-type'),
+          contentLength: response.headers.get('content-length'),
+          durationMs: Date.now() - started,
+        });
+        return stampResponse(response, requestId, 'collection');
+      }
     }
 
-    return placeholderResponse(album?.artist, album?.title);
+    recordDiagnostic('artwork-request-placeholder', {
+      requestId,
+      albumId: id,
+      route: 'collection',
+      choiceCount: choices.length,
+      legacyUrlCount: legacyUrls.length,
+      durationMs: Date.now() - started,
+    }, 'warn');
+    return stampResponse(placeholderResponse(album?.artist, album?.title), requestId, 'collection');
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') return new Response('UNAUTHENTICATED', { status: 401 });
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      recordDiagnostic('artwork-request-auth-failed', { requestId, albumId: id, route: 'collection', durationMs: Date.now() - started }, 'warn');
+      return new Response('UNAUTHENTICATED', { status: 401 });
+    }
     const album = getAlbumRecord(id);
-    return placeholderResponse(album?.artist, album?.title);
+    recordDiagnostic('artwork-request-exception', {
+      requestId,
+      albumId: id,
+      route: 'collection',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      durationMs: Date.now() - started,
+    }, 'error');
+    return stampResponse(placeholderResponse(album?.artist, album?.title), requestId, 'collection');
   }
 }
 
@@ -66,6 +218,13 @@ function legacyArtworkUrls(meta?: VinylMeta | null) {
     }
   }
   return urls;
+}
+
+function stampResponse(response: Response, requestId: string, route: string) {
+  const headers = new Headers(response.headers);
+  headers.set('x-needledrop-artwork-request-id', requestId);
+  headers.set('x-needledrop-artwork-route', route);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 function imageResponse(response: Response, maxAge: number, source: string) {

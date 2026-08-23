@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { AlertCircle, CheckCircle2, CopyMinus, Database, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import DiagnosticsCard from './DiagnosticsCard';
 import DirectRepairSettingsCard from './DirectRepairSettingsCard';
 import LidarrSettingsCard from './LidarrSettingsCard';
 import NzbRepairSettingsCard from './NzbRepairSettingsCard';
@@ -98,6 +99,7 @@ export default function LibraryManager({
         </div>
       </section>
 
+      <DiagnosticsCard />
       <NzbRepairSettingsCard />
       <DirectRepairSettingsCard />
       <LidarrSettingsCard />
