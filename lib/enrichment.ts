@@ -239,7 +239,7 @@ export async function enrichAlbum(album: Album) {
 
   let lastfmPatch: Partial<VinylMeta> = {};
   if (settings.lastfmEnabled !== false && settings.lastfmApiKey?.trim()) {
-    let lastfm: Awaited<ReturnType<typeof getLastFmAlbumInfo>> = null;
+    let lastfm: Awaited<ReturnType<typeof getLastFmAlbumInfo>> | null = null;
     for (const lookupTitle of lookupTitles) {
       lastfm = await getLastFmAlbumInfo(album.artist, lookupTitle, settings.lastfmApiKey).catch(() => null);
       if (lastfm) break;
