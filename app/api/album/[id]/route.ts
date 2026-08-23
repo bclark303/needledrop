@@ -5,7 +5,7 @@ import { getAlbumRecord, getMetadataValues, indexAlbums, listArtwork } from '@/l
 import { maybeAutoEnrich } from '@/lib/enrichment';
 import { resolveCanonicalAlbumId } from '@/lib/library';
 import { subsonic } from '@/lib/subsonic';
-import { getMeta, saveMeta } from '@/lib/store';
+import { backfillArtworkCandidatesFromMeta, getMeta, saveMeta } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +21,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     const virtual = await resolveVirtualRelease(original, meta);
     if (meta && virtual.meta && JSON.stringify(meta.sides) !== JSON.stringify(virtual.meta.sides)) await saveMeta(id, virtual.meta);
     const effectiveMeta = virtual.meta || meta;
+    backfillArtworkCandidatesFromMeta(id, effectiveMeta);
     const album = {
       ...virtual.album,
       rating: effectiveMeta?.rating,
