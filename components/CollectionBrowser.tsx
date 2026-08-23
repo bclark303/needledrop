@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Archive, Grid2X2, Layers3, Library, PanelTopOpen, Search, Sparkles, Store, Warehouse } from 'lucide-react';
+import { Archive, ArrowLeft, Grid2X2, Layers3, Library, PanelTopOpen, Search, Sparkles, Store, Warehouse } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type {
   Album,
@@ -12,9 +12,12 @@ import type {
   RecordRoomShelf,
 } from './types';
 import RecordRoomPanel from './RecordRoomPanel';
+import RecordRoomScene, { type RoomCollection } from './RecordRoomScene';
 import { cover } from './vinyl';
 
 export type { CollectionSort } from './types';
+
+type BrowserScreen = 'room' | 'collection';
 
 const DEFAULT_ROOM: RecordRoomConfig = {
   theme: 'audiophile',
@@ -27,6 +30,7 @@ const DEFAULT_ROOM: RecordRoomConfig = {
     { id: 'smart-five-star', name: 'Five-star records', kind: 'smart', presentation: 'shelf', rule: { type: 'rating', minimum: 5 } },
     { id: 'smart-new-arrivals', name: 'New arrivals', kind: 'smart', presentation: 'crate', rule: { type: 'recent', days: 60 } },
   ],
+  roomSlots: ['__all__', 'smart-favourites', 'smart-five-star', 'smart-new-arrivals'],
 };
 
 export default function CollectionBrowser({
@@ -34,24 +38,30 @@ export default function CollectionBrowser({
   query,
   sort,
   version,
+  playingAlbum,
   onSearch,
   onSort,
   onOpen,
   onQueue,
   onRandom,
+  onOpenTurntable,
 }: {
   albums: Album[];
   query: string;
   sort: CollectionSort;
   version: string;
+  playingAlbum: Album | null;
   onSearch: (value: string) => void;
   onSort: (sort: CollectionSort) => void;
   onOpen: (id: string) => void;
   onQueue: (album: Album) => void;
   onRandom: () => void;
+  onOpenTurntable: () => void;
 }) {
   const [room, setRoom] = useState<RecordRoomConfig>(DEFAULT_ROOM);
   const [roomOpen, setRoomOpen] = useState(false);
+  const [screen, setScreen] = useState<BrowserScreen>('room');
+  const [roomMessage, setRoomMessage] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +78,12 @@ export default function CollectionBrowser({
   useEffect(() => {
     document.documentElement.dataset.recordRoomTheme = room.theme;
   }, [room.theme]);
+
+  useEffect(() => {
+    if (!roomMessage) return;
+    const timer = window.setTimeout(() => setRoomMessage(''), 2600);
+    return () => window.clearTimeout(timer);
+  }, [roomMessage]);
 
   function saveRoom(next: RecordRoomConfig) {
     setRoom(next);
@@ -97,6 +113,26 @@ export default function CollectionBrowser({
       activeShelfId: shelf?.id,
       viewMode: shelf ? (shelf.presentation === 'crate' ? 'flip' : 'shelf') : room.viewMode,
     });
+  }
+
+  function openRoomCollection(collectionId: string) {
+    if (collectionId === '__all__') selectShelf();
+    else selectShelf(room.shelves.find((shelf) => shelf.id === collectionId));
+    onSearch('');
+    setScreen('collection');
+  }
+
+  function backToRoom() {
+    onSearch('');
+    setScreen('room');
+  }
+
+  function openRoomTurntable() {
+    if (!playingAlbum) {
+      setRoomMessage('Choose a record from one of the collections first.');
+      return;
+    }
+    onOpenTurntable();
   }
 
   function toggleFeatured(albumId: string) {
@@ -131,9 +167,22 @@ export default function CollectionBrowser({
     const byId = new Map(albums.map((album) => [album.id, album]));
     return room.featuredAlbumIds.map((id) => byId.get(id)).filter((album): album is Album => Boolean(album));
   }, [albums, room.featuredAlbumIds]);
+  const roomCollections = useMemo<RoomCollection[]>(() => [
+    { id: '__all__', name: 'All records', albums },
+    ...room.shelves.map((shelf) => ({ id: shelf.id, name: shelf.name, albums: filterShelf(albums, shelf) })),
+  ], [albums, room.shelves]);
 
-  return <section className="library-page record-room-page">
-    <div className="hero record-room-hero"><div><p className="eyebrow">YOUR RECORD ROOM</p><h1>{activeShelf?.name || 'What are we spinning?'}</h1><p>{activeShelf ? `${scopedAlbums.length} records in this ${activeShelf.presentation === 'crate' ? 'crate' : 'shelf'}.` : 'Browse the wall, work the shelf spine-by-spine, or flip through a crate.'}</p></div><div className="record-room-hero-actions"><button className="hero-random" onClick={onRandom}><Sparkles /> Pick a record for me</button><button className="hero-random room-manage-button" onClick={() => setRoomOpen(true)}><PanelTopOpen /> Arrange room</button></div></div>
+  if (screen === 'room') return <section className="record-room-home">
+    <div className="room-home-heading"><div><p className="eyebrow">YOUR RECORD ROOM</p><h1>Pick something to play.</h1><p>The shelves, bins and turntable are the interface. Click what you would reach for in the room.</p></div><div><button className="hero-random" onClick={onRandom}><Sparkles /> Pick a record for me</button><button className="hero-random room-manage-button" onClick={() => setRoomOpen(true)}><PanelTopOpen /> Arrange room</button></div></div>
+    <RecordRoomScene room={room} collections={roomCollections} playingAlbum={playingAlbum} onOpenCollection={openRoomCollection} onOpenAlbum={onOpen} onOpenTurntable={openRoomTurntable} onArrange={() => setRoomOpen(true)} />
+    {roomMessage && <div className="room-scene-toast" role="status">{roomMessage}</div>}
+    <footer className="app-version room-home-version">NeedleDrop v{version}</footer>
+    <RecordRoomPanel open={roomOpen} room={room} albums={albums} onClose={() => setRoomOpen(false)} onChange={saveRoom} />
+  </section>;
+
+  return <section className="library-page record-room-page room-collection-screen">
+    <div className="room-collection-nav"><button className="back-to-room" onClick={backToRoom}><ArrowLeft /> Back to room</button><button className="room-manage-link" onClick={() => setRoomOpen(true)}><PanelTopOpen /> Arrange room</button></div>
+    <div className="hero record-room-hero"><div><p className="eyebrow">RECORD COLLECTION</p><h1>{activeShelf?.name || 'All records'}</h1><p>{activeShelf ? `${scopedAlbums.length} records in this ${activeShelf.presentation === 'crate' ? 'crate' : 'shelf'}.` : `${scopedAlbums.length} records in the room.`}</p></div><button className="hero-random" onClick={onRandom}><Sparkles /> Pick a record for me</button></div>
 
     {!room.activeShelfId && !query.trim() && featured.length > 0 && <section className="featured-wall">
       <div className="featured-wall-heading"><div><p className="eyebrow">ON DISPLAY</p><h2>Featured records</h2></div><span>{featured.length} pinned</span></div>
@@ -146,7 +195,7 @@ export default function CollectionBrowser({
     </nav>
 
     <div className="library-tools collection-tools record-room-tools">
-      <div className="searchbox"><Search size={18} /><input value={query} onChange={(event) => onSearch(event.target.value)} placeholder="Search the collection" /></div>
+      <div className="searchbox"><Search size={18} /><input value={query} onChange={(event) => onSearch(event.target.value)} placeholder="Search this collection" /></div>
       <select value={sort} onChange={(event) => changeSort(event.target.value as CollectionSort)} aria-label="Sort collection">
         <option value="artist">Artist / band A–Z</option>
         <option value="album">Album title A–Z</option>
@@ -205,10 +254,7 @@ function GridRecord({ album, onOpen, actions }: { album: Album; onOpen: (id: str
 }
 
 function ShelfRecord({ album, onOpen, actions }: { album: Album; onOpen: (id: string) => void; actions: React.ReactNode }) {
-  return <article className="shelf-record">
-    <button className="shelf-spine" onClick={() => onOpen(album.id)} title={`${album.artist} — ${album.name}`}><span>{album.name}</span><small>{album.artist}</small></button>
-    <div className="shelf-pullout"><button className="shelf-cover" onClick={() => onOpen(album.id)}><Image src={cover(album.coverArt, 500)} alt={`${album.name} cover`} fill sizes="220px" loading="lazy" unoptimized /><span className="shelf-cover-caption"><strong>{album.name}</strong><small>{album.artist}{album.year ? ` · ${album.year}` : ''}</small></span></button><div className="shelf-pullout-actions">{actions}</div></div>
-  </article>;
+  return <article className="shelf-record"><button className="shelf-spine" onClick={() => onOpen(album.id)} title={`${album.artist} — ${album.name}`}><span>{album.name}</span><small>{album.artist}</small></button><div className="shelf-pullout"><button className="shelf-cover" onClick={() => onOpen(album.id)}><Image src={cover(album.coverArt, 500)} alt={`${album.name} cover`} fill sizes="220px" loading="lazy" unoptimized /><span className="shelf-cover-caption"><strong>{album.name}</strong><small>{album.artist}{album.year ? ` · ${album.year}` : ''}</small></span></button><div className="shelf-pullout-actions">{actions}</div></div></article>;
 }
 
 function FlipRecord({ album, onOpen, actions }: { album: Album; onOpen: (id: string) => void; actions: React.ReactNode }) {
