@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#d8cfbc"/><stop offset="1" stop-color="#9e927d"/></linearGradient>
+    <pattern id="peg" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="17" cy="17" r="2.2" fill="#685f51" fill-opacity=".25"/></pattern>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#wall)"/>
+  <rect x="70" y="70" width="1460" height="600" rx="8" fill="url(#peg)" opacity=".9"/>
+  <g opacity=".23" fill="#9f4e3c">
+    <rect x="130" y="130" width="280" height="200" rx="6"/><rect x="1190" y="130" width="280" height="200" rx="6"/>
+    <rect x="650" y="115" width="300" height="85" rx="5"/>
+  </g>
+  <g opacity=".3" stroke="#6a4b32" stroke-width="8">
+    <path d="M90 705 H1510"/><path d="M90 805 H1510"/>
+  </g>
+  <rect y="820" width="1600" height="180" fill="#564333"/>
+  <g fill="#372d25" opacity=".42"><rect x="120" y="725" width="360" height="130"/><rect x="620" y="725" width="360" height="130"/><rect x="1120" y="725" width="360" height="130"/></g>
+</svg>

@@ -70,6 +70,37 @@ export type MetadataSource = 'discogs' | 'musicbrainz' | 'lastfm';
 export type PlaybackMode = 'vinyl' | 'normal';
 export type TurntableSpeed = 33.333 | 45 | 78;
 
+export type CollectionSort = 'artist' | 'album' | 'yearAsc' | 'yearDesc' | 'rating' | 'newest' | 'recent' | 'frequent' | 'starred';
+export type CollectionViewMode = 'grid' | 'shelf' | 'flip';
+export type CollectionGroupMode = 'none' | 'artist' | 'decade' | 'year';
+export type RecordRoomTheme = 'audiophile' | 'teen-bedroom' | 'record-store';
+export type RecordRoomShelfPresentation = 'shelf' | 'crate';
+export type RecordRoomSmartRule =
+  | { type: 'starred' }
+  | { type: 'rating'; minimum: number }
+  | { type: 'decade'; decade: number }
+  | { type: 'genre'; value: string }
+  | { type: 'recent'; days: number };
+
+export type RecordRoomShelf = {
+  id: string;
+  name: string;
+  kind: 'manual' | 'smart';
+  presentation: RecordRoomShelfPresentation;
+  albumIds?: string[];
+  rule?: RecordRoomSmartRule;
+};
+
+export type RecordRoomConfig = {
+  theme: RecordRoomTheme;
+  sort: CollectionSort;
+  viewMode: CollectionViewMode;
+  groupMode: CollectionGroupMode;
+  activeShelfId?: string;
+  featuredAlbumIds: string[];
+  shelves: RecordRoomShelf[];
+};
+
 export type CanonicalArtworkCandidate = {
   id: number;
   albumId: string;
