@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { Album } from '@/components/types';
+import type { Album, AlbumDetail, Song } from '@/components/types';
 import { getDatabasePath, getSystemJson, indexAlbums, setSystemJson } from './db';
+import { logicalAlbumTitle, normalizedAlbumIdentity, parseSplitDiscTitle, splitDiscGroupKey } from './album-normalization';
 import { startEnrichment } from './enrichment';
 import { subsonic } from './subsonic';
 
@@ -115,23 +116,24 @@ async function runLibraryRescan(initial: LibraryScanStatus) {
     setSystemJson('library_scan_status', status);
     const albums = await loadAllAlbums();
     indexAlbums(albums);
+    const visible = prepareVisibleAlbums(albums);
 
     status = {
       ...status,
       phase: 'enriching',
-      albums: albums.length,
-      message: `Indexed ${albums.length} albums. Checking metadata and artwork…`,
+      albums: visible.length,
+      message: `Indexed ${visible.length} logical albums. Checking metadata and artwork…`,
     };
     setSystemJson('library_scan_status', status);
-    startEnrichment(albums, false);
+    startEnrichment(visible, false);
 
     status = {
       ...status,
       state: 'complete',
       phase: undefined,
-      albums: albums.length,
+      albums: visible.length,
       finishedAt: new Date().toISOString(),
-      message: `Library rescan complete · ${albums.length} albums indexed.`,
+      message: `Library rescan complete · ${visible.length} logical albums indexed.`,
     };
     setSystemJson('library_scan_status', status);
   } catch (error) {
@@ -164,6 +166,52 @@ export async function loadAllAlbums() {
   return albums;
 }
 
+export function prepareVisibleAlbums<T extends Album>(albums: T[]): T[] {
+  autoMergeSplitDiscAlbums(albums);
+  return filterMergedAlbums(albums).map((album) => ({
+    ...album,
+    name: displayAlbumTitle(album.id, album.name),
+  }));
+}
+
+export function autoMergeSplitDiscAlbums(albums: Array<Pick<Album, 'id' | 'artist' | 'name' | 'year'>>) {
+  if (albums.length < 2) return;
+  const db = connection();
+  const existingRows = db.prepare('SELECT alias_id, canonical_id FROM album_merges').all() as Array<{ alias_id: string; canonical_id: string }>;
+  const existing = new Map(existingRows.map((row) => [String(row.alias_id), String(row.canonical_id)]));
+  const groups = new Map<string, Array<{ album: Pick<Album, 'id' | 'artist' | 'name' | 'year'>; baseTitle: string; discNumber: number }>>();
+
+  for (const album of albums) {
+    const split = splitDiscGroupKey(album);
+    if (!split) continue;
+    const list = groups.get(split.key) || [];
+    list.push({ album, baseTitle: split.baseTitle, discNumber: split.discNumber });
+    groups.set(split.key, list);
+  }
+
+  for (const entries of groups.values()) {
+    if (entries.length < 2) continue;
+    const discNumbers = entries.map((entry) => entry.discNumber);
+    if (!discNumbers.includes(1) || new Set(discNumbers).size !== discNumbers.length) continue;
+    const ordered = [...entries].sort((a, b) => a.discNumber - b.discNumber || a.album.id.localeCompare(b.album.id));
+    const canonical = ordered.find((entry) => entry.discNumber === 1);
+    if (!canonical) continue;
+    const ids = new Set(ordered.map((entry) => entry.album.id));
+    const conflicts = ordered.some((entry) => {
+      const mapped = existing.get(entry.album.id);
+      return Boolean(mapped && mapped !== canonical.album.id && !ids.has(mapped));
+    });
+    if (conflicts || existing.has(canonical.album.id)) continue;
+
+    const aliases = ordered
+      .filter((entry) => entry.album.id !== canonical.album.id && existing.get(entry.album.id) !== canonical.album.id)
+      .map((entry) => entry.album.id);
+    if (!aliases.length) continue;
+    mergeAlbums(canonical.album.id, aliases);
+    aliases.forEach((aliasId) => existing.set(aliasId, canonical.album.id));
+  }
+}
+
 export function filterMergedAlbums<T extends { id: string }>(albums: T[]): T[] {
   const rows = connection().prepare('SELECT alias_id FROM album_merges').all() as Array<{ alias_id: string }>;
   if (!rows.length) return albums;
@@ -174,6 +222,56 @@ export function filterMergedAlbums<T extends { id: string }>(albums: T[]): T[] {
 export function resolveCanonicalAlbumId(albumId: string) {
   const row = connection().prepare('SELECT canonical_id FROM album_merges WHERE alias_id=?').get(albumId) as { canonical_id?: string } | undefined;
   return row?.canonical_id || albumId;
+}
+
+export function getMergedAlbumIds(albumId: string) {
+  const canonicalId = resolveCanonicalAlbumId(albumId);
+  const rows = connection().prepare('SELECT alias_id FROM album_merges WHERE canonical_id=? ORDER BY alias_id').all(canonicalId) as Array<{ alias_id: string }>;
+  return [canonicalId, ...rows.map((row) => String(row.alias_id))];
+}
+
+export function displayAlbumTitle(albumId: string, fallbackTitle: string) {
+  if (getMergedAlbumIds(albumId).length < 2) return fallbackTitle;
+  return logicalAlbumTitle(fallbackTitle);
+}
+
+export function combineMergedAlbumDetails(albums: AlbumDetail[], canonicalId: string): AlbumDetail {
+  const canonical = albums.find((album) => album.id === canonicalId) || albums[0];
+  if (!canonical || albums.length < 2 || !isSplitDiscFamily(albums)) return canonical;
+
+  const baseTitle = parseSplitDiscTitle(canonical.name)?.baseTitle || logicalAlbumTitle(albums[0].name);
+  const members = albums
+    .map((album) => ({ album, split: parseSplitDiscTitle(album.name)! }))
+    .sort((a, b) => a.split.discNumber - b.split.discNumber || a.album.id.localeCompare(b.album.id));
+  const seen = new Set<string>();
+  const songs: Song[] = [];
+
+  for (const member of members) {
+    for (const song of member.album.song || []) {
+      if (!song?.id || seen.has(song.id)) continue;
+      seen.add(song.id);
+      songs.push({
+        ...song,
+        album: baseTitle,
+        discNumber: member.split.discNumber,
+      });
+    }
+  }
+
+  songs.sort((a, b) =>
+    Number(a.discNumber || 1) - Number(b.discNumber || 1) ||
+    Number(a.track || Number.MAX_SAFE_INTEGER) - Number(b.track || Number.MAX_SAFE_INTEGER) ||
+    a.title.localeCompare(b.title),
+  );
+
+  const duration = songs.reduce((sum, song) => sum + Number(song.duration || 0), 0);
+  return {
+    ...canonical,
+    name: baseTitle,
+    songCount: songs.length,
+    duration: duration || canonical.duration,
+    song: songs,
+  };
 }
 
 export function listDuplicateGroups(): DuplicateGroup[] {
@@ -280,14 +378,29 @@ export function unmergeAlbum(aliasId: string) {
   connection().prepare('DELETE FROM album_merges WHERE alias_id=?').run(aliasId);
 }
 
+function isSplitDiscFamily(albums: AlbumDetail[]) {
+  const parsed = albums.map((album) => ({
+    album,
+    split: parseSplitDiscTitle(album.name),
+  }));
+  if (parsed.some((entry) => !entry.split)) return false;
+  const first = parsed[0];
+  const artist = normalizedAlbumIdentity(first.album.artist);
+  const title = normalizedAlbumIdentity(first.split!.baseTitle);
+  const year = first.album.year || undefined;
+  const discNumbers = new Set<number>();
+  for (const entry of parsed) {
+    if (normalizedAlbumIdentity(entry.album.artist) !== artist) return false;
+    if (normalizedAlbumIdentity(entry.split!.baseTitle) !== title) return false;
+    if (year && entry.album.year && entry.album.year !== year) return false;
+    if (discNumbers.has(entry.split!.discNumber)) return false;
+    discNumbers.add(entry.split!.discNumber);
+  }
+  return discNumbers.has(1) && discNumbers.size === albums.length;
+}
+
 function normalizeIdentity(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+  return normalizedAlbumIdentity(value);
 }
 
 function delay(ms: number) {
