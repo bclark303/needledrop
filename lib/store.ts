@@ -27,10 +27,9 @@ export async function saveMeta(id: string, patch: Partial<VinylMeta>) {
 /**
  * Older NeedleDrop installs can have perfectly usable Discogs artwork saved in
  * album_meta without matching rows in the canonical artwork table introduced
- * later. Album view can render those legacy meta.images directly, but collection
- * cards resolve artwork only through the canonical table. This idempotent helper
- * brings old metadata forward without changing an existing automatic/pinned
- * artwork mode unless the legacy metadata contains an explicit selection.
+ * later. Some of the oldest records also have meta.images but no persisted
+ * discogsReleaseId. Album view can still render those images directly, so the
+ * canonical resolver must not require a release id in order to recover them.
  */
 export function backfillArtworkCandidatesFromMeta(albumId: string, meta?: SharedVinylMeta | null) {
   if (!meta) return 0;
@@ -47,20 +46,22 @@ function syncArtworkSelection(albumId: string, meta: VinylMeta) {
 
 function syncDiscogsArtworkCandidates(albumId: string, meta: SharedVinylMeta) {
   let candidates = 0;
-  if (!meta.images?.length || !meta.discogsReleaseId) return candidates;
+  if (!meta.images?.length) return candidates;
 
   meta.images.forEach((image, index) => {
-    if (!image.uri) return;
+    const remoteUrl = image.uri || image.uri150;
+    if (!remoteUrl) return;
     const chosen = meta.artworkSource === 'discogs' && meta.discogsImageIndex === index;
     const isPrimary = image.type === 'primary' || index === 0;
+    const releaseKey = meta.discogsReleaseId ? String(meta.discogsReleaseId) : 'legacy';
     const candidateId = upsertArtworkCandidate({
       albumId,
       source: 'discogs',
-      scope: 'exact-release',
+      scope: meta.discogsReleaseId || meta.source === 'discogs' ? 'exact-release' : 'library',
       role: isPrimary || chosen ? 'front' : 'other',
-      sourceKey: `discogs:${meta.discogsReleaseId}:${index}`,
-      sourceId: String(meta.discogsReleaseId),
-      remoteUrl: image.uri,
+      sourceKey: `discogs:${releaseKey}:${index}`,
+      sourceId: meta.discogsReleaseId ? String(meta.discogsReleaseId) : undefined,
+      remoteUrl,
       width: image.width,
       height: image.height,
       userSelected: chosen,
