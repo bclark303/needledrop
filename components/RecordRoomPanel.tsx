@@ -1,6 +1,6 @@
 'use client';
 
-import { Archive, Armchair, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Archive, Armchair, MapPinned, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type {
   Album,
@@ -12,10 +12,16 @@ import type {
 } from './types';
 
 const THEMES: Array<{ id: RecordRoomTheme; name: string; description: string }> = [
-  { id: 'audiophile', name: 'Audiophile Listening Room', description: 'Walnut, acoustic panels, warm lamps and hi-fi restraint.' },
-  { id: 'teen-bedroom', name: '1970s Teen Bedroom', description: 'Dark paint, posters, warm bulbs and a slightly chaotic stack-of-records feel.' },
-  { id: 'record-store', name: 'Record Store', description: 'Cream walls, pegboard, price-card accents and flip-bin energy.' },
+  { id: 'audiophile', name: 'Audiophile Listening Room', description: 'A modern built-in listening wall with illuminated vinyl libraries, separates and a central turntable.' },
+  { id: 'teen-bedroom', name: 'Bedroom Listening Nook', description: 'A warm, poster-covered bedroom with a compact hi-fi, stacked records and late-night lamp light.' },
+  { id: 'record-store', name: 'Record Collector Room', description: 'Dense wooden shelves, digging bins and a turntable tucked into a lived-in record collector’s room.' },
 ];
+
+const SLOT_NAMES: Record<RecordRoomTheme, string[]> = {
+  audiophile: ['Left record library', 'Right record library', 'Hi-fi cabinet collection', 'Lower left cabinet'],
+  'teen-bedroom': ['Main record cabinet', 'Records beside turntable', 'Lower record shelf', 'Desk-side stack'],
+  'record-store': ['Left wall shelves', 'Front digging bins', 'Right wall shelves', 'Turntable cabinet records'],
+};
 
 type SmartRuleType = RecordRoomSmartRule['type'];
 
@@ -47,6 +53,13 @@ export default function RecordRoomPanel({
     onChange({ ...room, theme });
   }
 
+  function mapSlot(index: number, collectionId: string) {
+    const roomSlots = [...room.roomSlots];
+    while (roomSlots.length < 4) roomSlots.push('');
+    roomSlots[index] = collectionId;
+    onChange({ ...room, roomSlots });
+  }
+
   function createShelf() {
     const cleanName = name.trim();
     if (!cleanName) return;
@@ -66,7 +79,8 @@ export default function RecordRoomPanel({
 
   function removeShelf(id: string) {
     const shelves = room.shelves.filter((shelf) => shelf.id !== id);
-    onChange({ ...room, shelves, activeShelfId: room.activeShelfId === id ? undefined : room.activeShelfId });
+    const roomSlots = room.roomSlots.map((slot) => slot === id ? '' : slot);
+    onChange({ ...room, shelves, roomSlots, activeShelfId: room.activeShelfId === id ? undefined : room.activeShelfId });
   }
 
   return <div className="drawer-backdrop" onClick={onClose}>
@@ -74,16 +88,31 @@ export default function RecordRoomPanel({
       <button className="drawer-x" onClick={onClose} aria-label="Close"><X /></button>
       <p className="eyebrow">V0.8 · RECORD ROOM</p>
       <h2>Build your room</h2>
-      <p className="drawer-subtitle">Themes and shelves are saved to this Navidrome profile and follow you between devices.</p>
+      <p className="drawer-subtitle">The room is part of the interface. Its physical shelves and bins can point directly at your NeedleDrop collections.</p>
 
       <section className="room-panel-section">
-        <div className="meta-block-title"><div><h3>Room theme</h3><span>Changes the whole NeedleDrop environment, not just the collection page.</span></div></div>
+        <div className="meta-block-title"><div><h3>Room theme</h3><span>Choose the actual room you walk into when opening NeedleDrop.</span></div></div>
         <div className="room-theme-grid">
           {THEMES.map((theme) => <button key={theme.id} className={`room-theme-card ${room.theme === theme.id ? 'selected' : ''}`} onClick={() => changeTheme(theme.id)}>
             <span className={`room-theme-swatch theme-${theme.id}`}><Armchair /></span>
             <strong>{theme.name}</strong>
             <small>{theme.description}</small>
           </button>)}
+        </div>
+      </section>
+
+      <section className="room-panel-section">
+        <div className="meta-block-title"><div><h3>Map collections into the room</h3><span>Each highlighted physical record area opens the collection assigned to it.</span></div></div>
+        <div className="room-mapping-list">
+          {SLOT_NAMES[room.theme].map((slotName, index) => <label className="room-mapping-row" key={`${room.theme}:${index}`}>
+            <span className="room-mapping-icon"><MapPinned /></span>
+            <span><strong>{slotName}</strong><small>Clickable area {index + 1}</small></span>
+            <select value={room.roomSlots[index] || ''} onChange={(event) => mapSlot(index, event.target.value)}>
+              <option value="">Not mapped</option>
+              <option value="__all__">All records</option>
+              {room.shelves.map((shelf) => <option key={shelf.id} value={shelf.id}>{shelf.name}</option>)}
+            </select>
+          </label>)}
         </div>
       </section>
 
@@ -113,7 +142,7 @@ export default function RecordRoomPanel({
       </section>
 
       <section className="room-panel-section room-feature-note">
-        <Sparkles /><div><strong>Featured records</strong><span>Use the Feature button on any collection card to pin it to the display wall at the top of the room.</span></div>
+        <Sparkles /><div><strong>Featured records</strong><span>Feature buttons still pin albums to your collection display, while the room scene itself shows the actual album currently on the turntable.</span></div>
       </section>
     </aside>
   </div>;
