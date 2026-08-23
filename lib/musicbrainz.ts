@@ -1,3 +1,4 @@
+import { diagnosticFetch } from './diagnostic-fetch';
 import { getStoredSettings } from './settings';
 import { APP_VERSION } from './version';
 
@@ -14,7 +15,12 @@ async function throttledFetch(url: string) {
     if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
     const settings = await getStoredSettings();
     const userAgent = settings.musicbrainzUserAgent || `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)`;
-    const response = await fetch(url, { headers: { 'User-Agent': userAgent }, cache: 'no-store' });
+    const parsed = new URL(url);
+    const response = await diagnosticFetch(url, { headers: { 'User-Agent': userAgent }, cache: 'no-store' }, {
+      provider: 'musicbrainz',
+      operation: parsed.pathname.includes('release-group') ? 'release-group-search' : 'release-search',
+      data: { queryKeys: [...parsed.searchParams.keys()].sort(), throttleWaitMs: wait },
+    });
     lastRequestAt = Date.now();
     if (!response.ok) throw new Error(`MusicBrainz HTTP ${response.status}`);
     return response.json();
