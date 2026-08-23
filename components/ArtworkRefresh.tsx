@@ -36,11 +36,19 @@ export default function ArtworkRefresh() {
 
 function refreshArtworkImages() {
   const stamp = String(Date.now());
-  document.querySelectorAll<HTMLImageElement>('img[src*="/api/artwork/"]').forEach((image) => {
-    try {
-      const url = new URL(image.currentSrc || image.src, window.location.href);
-      url.searchParams.set('_ndv', stamp);
-      image.src = url.toString();
-    } catch {}
+  const images = [...document.querySelectorAll<HTMLImageElement>('img[src*="/api/artwork/"]')];
+
+  // Do not turn a completed enrichment pass into a burst of dozens of simultaneous
+  // Discogs/CAA requests. The server also limits upstream concurrency, but staggering
+  // here keeps browser and proxy pressure low and lets the collection refill smoothly.
+  images.forEach((image, index) => {
+    window.setTimeout(() => {
+      if (!image.isConnected) return;
+      try {
+        const url = new URL(image.currentSrc || image.src, window.location.href);
+        url.searchParams.set('_ndv', stamp);
+        image.src = url.toString();
+      } catch {}
+    }, index * 90);
   });
 }

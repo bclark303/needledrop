@@ -1,10 +1,10 @@
 import type { VinylMeta } from '@/components/types';
-import { getAlbumMetaJson, getAlbumRecord } from '@/lib/db';
+import { fetchCachedExternalArtwork } from '@/lib/artwork-cache';
 import { orderedArtworkChoices } from '@/lib/artwork-resolution';
+import { getAlbumMetaJson, getAlbumRecord } from '@/lib/db';
 import { getStoredSettings } from '@/lib/settings';
 import { backfillArtworkCandidatesFromMeta } from '@/lib/store';
 import { mediaUrl } from '@/lib/subsonic';
-import { APP_VERSION } from '@/lib/version';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +23,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
 
     for (const choice of choices) {
       if (choice.kind === 'candidate' && choice.artwork.remoteUrl) {
-        const response = await fetchExternalArtwork(choice.artwork.remoteUrl, settings.musicbrainzUserAgent, settings.discogsToken);
+        const response = await fetchCachedExternalArtwork(choice.artwork.remoteUrl, settings.musicbrainzUserAgent, settings.discogsToken);
         if (response) return response;
       }
 
@@ -38,7 +38,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
     // able to render meta.images directly; Collection view should never lose a
     // usable saved cover merely because canonical migration metadata is sparse.
     for (const value of legacyArtworkUrls(legacyMeta)) {
-      const response = await fetchExternalArtwork(value, settings.musicbrainzUserAgent, settings.discogsToken);
+      const response = await fetchCachedExternalArtwork(value, settings.musicbrainzUserAgent, settings.discogsToken);
       if (response) return response;
     }
 
@@ -56,7 +56,8 @@ function legacyArtworkUrls(meta?: VinylMeta | null) {
   const ordered = [...images.keys()];
   const selected = Number.isInteger(meta.discogsImageIndex) ? Number(meta.discogsImageIndex) : -1;
   const primary = images.findIndex((image) => image.type === 'primary');
-  const preferred = [selected, primary, 0, ...ordered].filter((index, position, list) => index >= 0 && index < images.length && list.indexOf(index) === position);
+  const preferred = [selected, primary, 0, ...ordered]
+    .filter((index, position, list) => index >= 0 && index < images.length && list.indexOf(index) === position);
   const urls: string[] = [];
   for (const index of preferred) {
     const image = images[index];
@@ -67,36 +68,6 @@ function legacyArtworkUrls(meta?: VinylMeta | null) {
   return urls;
 }
 
-async function fetchExternalArtwork(value: string, configuredUserAgent?: string, discogsToken?: string) {
-  let url: URL;
-  try { url = new URL(value); } catch { return null; }
-  const allowed = [
-    'discogs.com',
-    'coverartarchive.org',
-    'archive.org',
-  ].some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
-  if (url.protocol !== 'https:' || !allowed) return null;
-
-  const headers: Record<string, string> = {
-    'User-Agent': configuredUserAgent || `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)`,
-    Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-  };
-
-  // Discogs image URLs (normally i.discogs.com) are signed CDN URLs and the
-  // album-page proxy successfully fetches them without API Authorization. Only
-  // add the API token if a future candidate actually points at api.discogs.com.
-  if (url.hostname === 'api.discogs.com' && discogsToken?.trim()) {
-    headers.Authorization = `Discogs token=${discogsToken.trim()}`;
-  }
-
-  const response = await fetch(url, { headers, cache: 'no-store', redirect: 'follow' }).catch(() => null);
-  if (!response?.ok || !response.body) return null;
-  const contentType = (response.headers.get('content-type') || '').toLowerCase();
-  const acceptable = contentType.startsWith('image/') || contentType === 'application/octet-stream' || contentType === 'binary/octet-stream';
-  if (!acceptable) return null;
-  return imageResponse(response, 86400, url.hostname);
-}
-
 function imageResponse(response: Response, maxAge: number, source: string) {
   const headers = new Headers();
   const contentType = response.headers.get('content-type');
@@ -105,6 +76,7 @@ function imageResponse(response: Response, maxAge: number, source: string) {
   if (contentLength) headers.set('content-length', contentLength);
   headers.set('cache-control', `private, max-age=${maxAge}`);
   headers.set('x-needledrop-artwork-source', source);
+  headers.set('x-needledrop-artwork-cache', 'passthrough');
   return new Response(response.body, { status: 200, headers });
 }
 
@@ -112,7 +84,7 @@ function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavail
   const titleLines = wrap(title, 22, 3);
   const artistLines = wrap(artist, 28, 2);
   const titleSvg = titleLines.map((line, index) => `<text x="72" y="${690 + index * 66}" class="title">${escapeXml(line)}</text>`).join('');
-  const artistSvg = artistLines.map((line, index) => `<text x="74" y="${885 + index * 38}" class="artist">${escapeXml(line)}</text>`).join('');
+  const artistLinesSvg = artistLines.map((line, index) => `<text x="74" y="${885 + index * 38}" class="artist">${escapeXml(line)}</text>`).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
   <defs>
     <radialGradient id="record" cx="48%" cy="42%" r="58%"><stop offset="0" stop-color="#34312b"/><stop offset="0.3" stop-color="#11100e"/><stop offset="0.72" stop-color="#24211d"/><stop offset="1" stop-color="#090908"/></radialGradient>
@@ -126,7 +98,7 @@ function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavail
   <g fill="none" stroke="#4b4640" opacity="0.45"><circle cx="500" cy="330" r="216"/><circle cx="500" cy="330" r="198"/><circle cx="500" cy="330" r="180"/><circle cx="500" cy="330" r="162"/><circle cx="500" cy="330" r="144"/></g>
   <text x="72" y="610" class="mark">NEEDLEDROP · ARTWORK NOT FOUND</text>
   ${titleSvg}
-  ${artistSvg}
+  ${artistLinesSvg}
   <style>.mark{fill:#a99b88;font:600 24px ui-sans-serif,system-ui,sans-serif;letter-spacing:4px}.title{fill:#f0e5d2;font:700 52px Georgia,serif}.artist{fill:#c9b9a2;font:400 28px ui-sans-serif,system-ui,sans-serif;letter-spacing:1px}</style>
 </svg>`;
   return new Response(svg, {
@@ -135,6 +107,7 @@ function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavail
       'content-type': 'image/svg+xml; charset=utf-8',
       'cache-control': 'private, no-store, max-age=0',
       'x-needledrop-artwork-source': 'placeholder',
+      'x-needledrop-artwork-cache': 'none',
     },
   });
 }
