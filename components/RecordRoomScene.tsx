@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Disc3, Library, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Disc3, Grid2X2, Library, SlidersHorizontal, Sparkles } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import type { Album, RecordRoomConfig } from './types';
 import { cover } from './vinyl';
@@ -33,6 +33,13 @@ export default function RecordRoomScene({
   const slots = room.roomSlots.map((id) => byId.get(id)).slice(0, 4);
 
   return <section className="component-record-room" aria-label="Interactive Audiophile Listening Room">
+    <nav className="record-room-primary-nav" aria-label="NeedleDrop room navigation">
+      <button className="active" aria-current="page"><Library /> Room</button>
+      <button onClick={() => onOpenCollection('__all__')}><Grid2X2 /> Collection</button>
+      <button onClick={onOpenTurntable}><Disc3 /> Turntable</button>
+    </nav>
+    <div className="component-prototype-note">Audiophile Listening Room prototype · the room is built from live UI components rather than a background photograph.</div>
+
     <div className="component-room-stage">
       <div className="component-room-wall" aria-hidden="true" />
       <div className="component-room-floor" aria-hidden="true" />
