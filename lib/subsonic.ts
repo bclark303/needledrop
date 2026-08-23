@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { diagnosticFetch } from './diagnostic-fetch';
+import { recordDiagnostic } from './diagnostics';
 import { getSession, type Session } from './session';
 import { getNavidromeUrl } from './settings';
 import { APP_NAME } from './version';
@@ -24,11 +26,31 @@ export async function subsonic(endpoint: string, params: Record<string, string |
     if (value !== undefined) q.set(key, String(value));
   }
   const base = await getNavidromeUrl();
-  const response = await fetch(`${base}/rest/${endpoint}.view?${q}`, { cache: 'no-store' });
+  const response = await diagnosticFetch(`${base}/rest/${endpoint}.view?${q}`, { cache: 'no-store' }, {
+    provider: 'navidrome',
+    operation: endpoint,
+    data: {
+      paramKeys: Object.keys(params).sort(),
+      requestShape: {
+        type: params.type,
+        size: params.size,
+        offset: params.offset,
+        idPresent: params.id != null,
+      },
+    },
+  });
   if (!response.ok) throw new Error(`Navidrome HTTP ${response.status}`);
   const json = await response.json();
   const root = json['subsonic-response'];
-  if (root?.status !== 'ok') throw new Error(root?.error?.message || 'Navidrome request failed');
+  if (root?.status !== 'ok') {
+    recordDiagnostic('provider-logical-error', {
+      provider: 'navidrome',
+      operation: endpoint,
+      code: root?.error?.code,
+      message: root?.error?.message || 'Navidrome request failed',
+    }, 'warn');
+    throw new Error(root?.error?.message || 'Navidrome request failed');
+  }
   return root;
 }
 

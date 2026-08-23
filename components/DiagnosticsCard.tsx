@@ -9,8 +9,10 @@ type Status = {
   startedAt?: string;
   stoppedAt?: string;
   eventCount: number;
+  droppedEvents?: number;
   lastEventAt?: string;
   truncated?: boolean;
+  truncationReason?: string;
   logBytes?: number;
   maxLogBytes?: number;
 };
@@ -19,12 +21,22 @@ type Summary = {
   totalEvents?: number;
   byType?: Record<string, number>;
   byLevel?: Record<string, number>;
+  warnings?: number;
+  errors?: number;
   artworkServed?: Record<string, number>;
   cacheStates?: Record<string, number>;
   placeholderAlbums?: string[];
   failedAlbums?: string[];
   clientImageLoads?: number;
   clientImageErrors?: number;
+  clientApiRequests?: number;
+  clientApiFailures?: number;
+  browserErrors?: number;
+  providerRequests?: number;
+  providerFailures?: number;
+  mediaEvents?: number;
+  mediaErrors?: number;
+  longTasks?: number;
 };
 
 type CacheStats = {
@@ -84,11 +96,11 @@ export default function DiagnosticsCard() {
     setData((current) => ({ ...current, ...overview, canManage: current?.canManage }));
     window.dispatchEvent(new Event('needledrop:diagnostics-changed'));
     const messages: Record<string, string> = {
-      start: 'Clean diagnostics capture started. Run enrichment, reproduce the refresh problem, then stop and export.',
-      stop: 'Capture stopped. The log and artwork cache inventory are ready to export.',
+      start: 'Clean app-wide diagnostics capture started. Reproduce the problem normally, add markers around important moments, then stop and export.',
+      stop: 'Capture stopped. Browser, API, provider, playback, artwork and runtime evidence are ready to export.',
       clear: 'Diagnostics log cleared.',
-      snapshot: 'Artwork state snapshot captured.',
-      marker: 'Timeline marker recorded.',
+      snapshot: 'Artwork and enrichment state snapshot captured.',
+      marker: 'Timeline marker and artwork state snapshot recorded.',
     };
     setResult({ ok: true, message: messages[actionName] || 'Diagnostics action complete.' });
   }
@@ -115,7 +127,7 @@ export default function DiagnosticsCard() {
     anchor.remove();
     URL.revokeObjectURL(url);
     setBusy('');
-    setResult({ ok: true, message: 'Sanitized diagnostics report exported.' });
+    setResult({ ok: true, message: 'Sanitized app-wide diagnostics report exported.' });
   }
 
   const status = data?.status;
@@ -124,13 +136,12 @@ export default function DiagnosticsCard() {
   const active = status?.active === true;
   const canManage = data?.canManage !== false;
   const placeholderCount = summary?.placeholderAlbums?.length || 0;
-  const failedCount = summary?.failedAlbums?.length || 0;
 
   return <section className="library-manager-block diagnostics-card">
     <div className="library-manager-heading">
       <div>
         <h3><Bug size={18} /> Debug diagnostics <span className="advanced-badge">Advanced</span></h3>
-        <p>Capture the complete artwork path across Collection, Album view, remote providers, persistent cache, enrichment transitions and browser image loads. Secrets and URL query values are removed from exports.</p>
+        <p>Capture a correlated timeline across the browser, NeedleDrop APIs, Navidrome and metadata providers, playback/media state, artwork resolution/cache, enrichment, SQLite, container/runtime health and the /data filesystem. Credentials, cookies and URL query values are removed from exports.</p>
       </div>
       <strong>{active ? 'CAPTURING' : 'IDLE'}</strong>
     </div>
@@ -145,17 +156,22 @@ export default function DiagnosticsCard() {
     </div>
 
     <div className="repair-capabilities">
-      <span><Camera size={14} /> Cache: {cache?.entries || 0} covers · {formatBytes(cache?.bytes || 0)}</span>
-      <span><Activity size={14} /> Placeholders observed: {placeholderCount}</span>
-      <span><Activity size={14} /> Albums with warnings: {failedCount}</span>
-      <span><Activity size={14} /> Browser loads/errors: {summary?.clientImageLoads || 0}/{summary?.clientImageErrors || 0}</span>
+      <span><Activity size={14} /> Warnings/errors: {summary?.warnings || 0}/{summary?.errors || 0}</span>
+      <span><Activity size={14} /> Browser errors: {summary?.browserErrors || 0}</span>
+      <span><Activity size={14} /> API requests/failures: {summary?.clientApiRequests || 0}/{summary?.clientApiFailures || 0}</span>
+      <span><Activity size={14} /> Provider requests/failures: {summary?.providerRequests || 0}/{summary?.providerFailures || 0}</span>
+      <span><Activity size={14} /> Media events/errors: {summary?.mediaEvents || 0}/{summary?.mediaErrors || 0}</span>
+      <span><Activity size={14} /> Long browser tasks: {summary?.longTasks || 0}</span>
+      <span><Camera size={14} /> Artwork cache: {cache?.entries || 0} covers · {formatBytes(cache?.bytes || 0)}</span>
+      <span><Activity size={14} /> Artwork placeholders: {placeholderCount}</span>
+      <span><Activity size={14} /> Image loads/errors: {summary?.clientImageLoads || 0}/{summary?.clientImageErrors || 0}</span>
       <span><Activity size={14} /> Upstream active/queued: {cache?.activeExternalFetches || 0}/{cache?.queuedExternalFetches || 0}</span>
       <span><Activity size={14} /> Backoff URLs: {cache?.backoffEntries || 0}</span>
     </div>
 
     <div className="direct-repair-warning">
       <Bug size={19} />
-      <div><strong>Recommended reproduction</strong><span>Start a clean capture → run a full enrichment → wait until covers settle → add the “after enrichment” marker → refresh the browser → add the “after refresh” marker → stop → export the JSON report.</span></div>
+      <div><strong>Recommended reproduction</strong><span>Start a clean capture → perform the exact actions that trigger the problem → add “issue visible” as soon as you see it → retry or refresh if that is part of the problem → add the second marker → stop → export the JSON. Keep the capture running while the failure is actually happening.</span></div>
     </div>
 
     <div className="repair-options-row direct-repair-options">
@@ -165,20 +181,21 @@ export default function DiagnosticsCard() {
         <button disabled={!canManage || busy !== '' || !active} onClick={() => void action('snapshot', { reason: 'manual-ui' })}><Camera size={15} /> Snapshot</button>
       </div>
       <div className="lidarr-buttons">
-        <button disabled={!canManage || busy !== '' || !active} onClick={() => void action('marker', { label: 'AFTER ENRICHMENT' })}><Flag size={15} /> Mark after enrichment</button>
-        <button disabled={!canManage || busy !== '' || !active} onClick={() => void action('marker', { label: 'AFTER BROWSER REFRESH' })}><Flag size={15} /> Mark after refresh</button>
+        <button disabled={!canManage || busy !== '' || !active} onClick={() => void action('marker', { label: 'ISSUE VISIBLE' })}><Flag size={15} /> Mark issue visible</button>
+        <button disabled={!canManage || busy !== '' || !active} onClick={() => void action('marker', { label: 'AFTER RETRY OR REFRESH' })}><Flag size={15} /> Mark after retry</button>
       </div>
     </div>
 
     <div className="repair-options-row direct-repair-options">
-      <div><small>Exports include per-album candidate order, cache presence, resolver requests, HTTP statuses/timings, browser load telemetry, runtime UID/GID, enrichment state and current artwork DB state.</small></div>
+      <div><small>Exports include raw event chronology plus automatic summaries, slow operations, browser/API failures, provider statuses and rate-limit headers, media events, service-worker/browser state, process/container limits, filesystem capacity/permissions, SQLite integrity and table counts, artwork cache health and per-album resolver state.</small></div>
       <div className="lidarr-buttons">
         <button disabled={!canManage || busy !== '' || !(status?.eventCount)} onClick={() => void exportReport()}><Download size={15} /> {busy === 'export' ? 'Building…' : 'Export JSON'}</button>
         <button disabled={!canManage || busy !== '' || active || !(status?.eventCount)} onClick={() => void action('clear')}><Trash2 size={15} /> Clear</button>
       </div>
     </div>
 
-    {status?.truncated && <div className="settings-warning">The diagnostics log reached its 25 MB safety limit and capture stopped automatically.</div>}
+    {(status?.droppedEvents || 0) > 0 && <div className="settings-warning">Diagnostics warning: {status?.droppedEvents} event{status?.droppedEvents === 1 ? '' : 's'} could not be written.</div>}
+    {status?.truncated && <div className="settings-warning">The diagnostics log reached its safety limit and capture stopped automatically.{status.truncationReason ? ` ${status.truncationReason}` : ''}</div>}
     {cache && ((cache.orphanBins || 0) > 0 || (cache.orphanMetadata || 0) > 0) && <div className="settings-warning">Artwork cache integrity warning: {cache.orphanBins || 0} data files and {cache.orphanMetadata || 0} metadata files are orphaned.</div>}
     {result && <div className={`connection-result ${result.ok ? 'ok' : 'bad'}`}>{result.ok ? <CheckCircle2 /> : <Bug />}<span>{result.message}</span></div>}
   </section>;

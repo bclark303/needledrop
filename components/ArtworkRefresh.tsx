@@ -35,7 +35,7 @@ export default function ArtworkRefresh() {
     }
 
     async function refreshCaptureStatus() {
-      const response = await fetch('/api/diagnostics', { cache: 'no-store' }).catch(() => null);
+      const response = await fetch('/api/diagnostics?status=1', { cache: 'no-store' }).catch(() => null);
       if (!response?.ok || cancelled) return;
       const payload = await response.json().catch(() => ({})) as { status?: { active?: boolean } };
       const wasActive = captureActive;
