@@ -1,6 +1,8 @@
-import { getAlbumRecord } from '@/lib/db';
+import type { VinylMeta } from '@/components/types';
+import { getAlbumMetaJson, getAlbumRecord } from '@/lib/db';
 import { orderedArtworkChoices } from '@/lib/artwork-resolution';
 import { getStoredSettings } from '@/lib/settings';
+import { backfillArtworkCandidatesFromMeta } from '@/lib/store';
 import { mediaUrl } from '@/lib/subsonic';
 import { APP_VERSION } from '@/lib/version';
 
@@ -11,7 +13,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   try {
     const settings = await getStoredSettings();
     const album = getAlbumRecord(id);
+    const legacyMeta = getAlbumMetaJson<VinylMeta>(id);
     const size = new URL(request.url).searchParams.get('size') || '1000';
+
+    // Keep the canonical artwork table self-healing. This also recovers very old
+    // saved Discogs image metadata that predates persisted Discogs release ids.
+    backfillArtworkCandidatesFromMeta(id, legacyMeta);
     const choices = orderedArtworkChoices(id, settings.artworkSourceOrder);
 
     for (const choice of choices) {
@@ -27,6 +34,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
       }
     }
 
+    // Resolver-level compatibility fallback. Album view has historically been
+    // able to render meta.images directly; Collection view should never lose a
+    // usable saved cover merely because canonical migration metadata is sparse.
+    for (const value of legacyArtworkUrls(legacyMeta)) {
+      const response = await fetchExternalArtwork(value, settings.musicbrainzUserAgent, settings.discogsToken);
+      if (response) return response;
+    }
+
     return placeholderResponse(album?.artist, album?.title);
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') return new Response('UNAUTHENTICATED', { status: 401 });
@@ -35,8 +50,25 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   }
 }
 
+function legacyArtworkUrls(meta?: VinylMeta | null) {
+  if (!meta?.images?.length) return [];
+  const ordered = [...meta.images.keys()];
+  const selected = Number.isInteger(meta.discogsImageIndex) ? Number(meta.discogsImageIndex) : -1;
+  const primary = meta.images.findIndex((image) => image.type === 'primary');
+  const preferred = [selected, primary, 0, ...ordered].filter((index, position, list) => index >= 0 && index < meta.images!.length && list.indexOf(index) === position);
+  const urls: string[] = [];
+  for (const index of preferred) {
+    const image = meta.images[index];
+    for (const value of [image?.uri, image?.uri150]) {
+      if (value && !urls.includes(value)) urls.push(value);
+    }
+  }
+  return urls;
+}
+
 async function fetchExternalArtwork(value: string, configuredUserAgent?: string, discogsToken?: string) {
-  const url = new URL(value);
+  let url: URL;
+  try { url = new URL(value); } catch { return null; }
   const allowed = [
     'discogs.com',
     'coverartarchive.org',
@@ -95,7 +127,6 @@ function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavail
     status: 200,
     headers: {
       'content-type': 'image/svg+xml; charset=utf-8',
-      // Never let a temporary placeholder stick after background enrichment.
       'cache-control': 'private, no-store, max-age=0',
       'x-needledrop-artwork-source': 'placeholder',
     },
