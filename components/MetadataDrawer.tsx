@@ -62,6 +62,7 @@ export default function MetadataDrawer({
   const [data, setData] = useState<MetadataResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [artworkBusy, setArtworkBusy] = useState(false);
+  const [selectingPressingImage, setSelectingPressingImage] = useState<number | null>(null);
   const [savingRelease, setSavingRelease] = useState<number | null>(null);
   const [form, setForm] = useState<VinylMeta>(meta || {});
   const [error, setError] = useState('');
@@ -165,11 +166,42 @@ export default function MetadataDrawer({
     window.dispatchEvent(new Event('needledrop:artwork-updated'));
   }
 
+  async function choosePressingArtwork(imageIndex: number) {
+    setSelectingPressingImage(imageIndex);
+    setError('');
+    try {
+      const response = await fetch(`/api/artwork/${encodeURIComponent(album.id)}/selection`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'pressing', imageIndex }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(payload.error || 'Could not use this pressing image for the collection');
+        return;
+      }
+      if (payload.meta) {
+        setForm(payload.meta);
+        onMeta(payload.meta);
+      }
+      await refresh();
+      window.dispatchEvent(new Event('needledrop:artwork-updated'));
+    } catch (selectionError) {
+      setError(selectionError instanceof Error ? selectionError.message : 'Could not use this pressing image for the collection');
+    } finally {
+      setSelectingPressingImage(null);
+    }
+  }
+
   const dc = data?.discogs || [];
   const mb = data?.musicbrainz || [];
   const releaseUrl = meta ? discogsReleaseUrl(meta) : undefined;
   const library = data?.library;
+  const pressingImages = form.images || data?.saved?.images || meta?.images || [];
   const frontArtwork = (data?.artwork || []).filter((candidate) => candidate.role === 'front' && candidate.remoteUrl);
+  const otherCanonicalArtwork = frontArtwork.filter((candidate) => !(
+    pressingImages.length && candidate.source === 'discogs' && /^discogs:[^:]+:\d+$/.test(candidate.sourceKey)
+  ));
   const physicalSources = (data?.metadataSourceOrder || ['discogs', 'musicbrainz']).filter((source) => source === 'discogs' || source === 'musicbrainz');
 
   return <div className="drawer-backdrop" onClick={onClose}>
@@ -201,13 +233,29 @@ export default function MetadataDrawer({
       </section>}
 
       <section className="meta-block">
-        <div className="meta-block-title"><div><h3>Canonical album artwork</h3><span>Auto follows the source priority in Settings. A pinned image always wins.</span></div><button className="text-button" onClick={() => void refreshArtwork()} disabled={artworkBusy}><RefreshCw size={14} className={artworkBusy ? 'spin' : ''} /> {artworkBusy ? 'Resolving…' : 'Resolve again'}</button></div>
+        <div className="meta-block-title"><div><h3>Canonical album artwork</h3><span>Choose the cover NeedleDrop should use everywhere. A pinned image always wins.</span></div><button className="text-button" onClick={() => void refreshArtwork()} disabled={artworkBusy}><RefreshCw size={14} className={artworkBusy ? 'spin' : ''} /> {artworkBusy ? 'Resolving…' : 'Resolve again'}</button></div>
+
+        {pressingImages.length > 0 && <>
+          <p className="muted">Selected pressing artwork · choose any image below to make it the Collection cover.</p>
+          <div className="artwork-picker canonical-artwork-picker">
+            {pressingImages.map((image, index) => {
+              const selected = form.artworkSource === 'discogs' && form.discogsImageIndex === index;
+              const busy = selectingPressingImage === index;
+              return <button key={`pressing-${index}`} className={selected ? 'selected' : ''} aria-pressed={selected} disabled={selectingPressingImage !== null} onClick={() => void choosePressingArtwork(index)}>
+                <div><Image src={`/api/metadata/${encodeURIComponent(album.id)}/image/${index}`} alt={`${album.name} pressing artwork ${index + 1}`} fill sizes="130px" unoptimized /></div>
+                <span>{selected ? 'Collection cover' : busy ? 'Applying…' : 'Use for collection'} · {image.type === 'primary' ? 'front' : `image ${index + 1}`}</span>
+              </button>;
+            })}
+          </div>
+        </>}
+
+        <p className="muted">Automatic and alternate sources</p>
         <div className="artwork-picker canonical-artwork-picker">
           <button className={library?.artworkMode === 'auto' ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('auto')}><div><Image src={cover(album.coverArt, 300)} alt="Automatic artwork" fill sizes="130px" unoptimized /></div><span>Auto · best source</span></button>
           {data?.navidromeCoverArt && <button className={library?.artworkMode === 'navidrome' ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('navidrome')}><div><Image src={cover(data.navidromeCoverArt, 300)} alt="Navidrome artwork" fill sizes="130px" unoptimized /></div><span>Navidrome</span></button>}
-          {frontArtwork.map((candidate) => <button key={candidate.id} className={library?.artworkMode === 'candidate' && library.canonicalArtworkId === candidate.id ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('candidate', candidate.id)}><div><Image src={`/api/artwork/candidate/${candidate.id}`} alt={`${candidate.source} artwork`} fill sizes="130px" unoptimized /></div><span>{candidate.source === 'coverartarchive' ? 'Cover Art Archive' : candidate.source} · {candidate.scope === 'release-group' ? 'album' : candidate.scope === 'library' ? 'library match' : 'exact release'}</span></button>)}
+          {otherCanonicalArtwork.map((candidate) => <button key={candidate.id} className={library?.artworkMode === 'candidate' && library.canonicalArtworkId === candidate.id ? 'selected' : ''} onClick={() => chooseCanonicalArtwork('candidate', candidate.id)}><div><Image src={`/api/artwork/candidate/${candidate.id}`} alt={`${candidate.source} artwork`} fill sizes="130px" unoptimized /></div><span>{candidate.source === 'coverartarchive' ? 'Cover Art Archive' : candidate.source} · {candidate.scope === 'release-group' ? 'album' : candidate.scope === 'library' ? 'library match' : 'exact release'}</span></button>)}
         </div>
-        {!data?.navidromeCoverArt && !frontArtwork.length && <p className="muted">No artwork candidates have been resolved yet. Use Resolve again or run a Library rescan.</p>}
+        {!data?.navidromeCoverArt && !frontArtwork.length && !pressingImages.length && <p className="muted">No artwork candidates have been resolved yet. Use Resolve again or run a Library rescan.</p>}
       </section>
 
       {library && (library.lastfmTags?.length || library.lastfmSummary) && <section className="meta-block">
