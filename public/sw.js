@@ -1,4 +1,4 @@
-const CACHE='needledrop-v7-7';
+const CACHE='needledrop-v7-8';
 const CORE=['/','/needledrop-icon.png','/needledrop-icon.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))),self.clients.claim()])));
