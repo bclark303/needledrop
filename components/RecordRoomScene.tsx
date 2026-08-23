@@ -1,58 +1,15 @@
 'use client';
 
 import Image from 'next/image';
-import { Disc3, Library, Play, Sparkles } from 'lucide-react';
-import type { Album, RecordRoomConfig, RecordRoomTheme } from './types';
+import { Disc3, Grid2X2, Library, SlidersHorizontal, Sparkles } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import type { Album, RecordRoomConfig } from './types';
 import { cover } from './vinyl';
 
 export type RoomCollection = {
   id: string;
   name: string;
   albums: Album[];
-};
-
-type Box = { left: number; top: number; width: number; height: number };
-type SceneLayout = {
-  image: string;
-  turntable: Box;
-  jacket: Box;
-  collections: Box[];
-};
-
-const LAYOUTS: Record<RecordRoomTheme, SceneLayout> = {
-  audiophile: {
-    image: '/record-room/audiophile-room.webp',
-    turntable: { left: 43, top: 39, width: 17, height: 17 },
-    jacket: { left: 37.5, top: 40, width: 8.5, height: 15 },
-    collections: [
-      { left: 8, top: 13, width: 24, height: 45 },
-      { left: 70, top: 13, width: 24, height: 45 },
-      { left: 32, top: 56, width: 37, height: 25 },
-      { left: 4, top: 58, width: 27, height: 18 },
-    ],
-  },
-  'record-store': {
-    image: '/record-room/record-store-room.webp',
-    turntable: { left: 47, top: 43, width: 18, height: 16 },
-    jacket: { left: 63, top: 41, width: 8, height: 15 },
-    collections: [
-      { left: 0, top: 5, width: 35, height: 48 },
-      { left: 2, top: 54, width: 43, height: 35 },
-      { left: 73, top: 4, width: 27, height: 53 },
-      { left: 45, top: 55, width: 26, height: 22 },
-    ],
-  },
-  'teen-bedroom': {
-    image: '/record-room/teen-bedroom-room.webp',
-    turntable: { left: 42, top: 43, width: 20, height: 17 },
-    jacket: { left: 62, top: 43, width: 9, height: 16 },
-    collections: [
-      { left: 36, top: 57, width: 36, height: 25 },
-      { left: 55, top: 49, width: 19, height: 13 },
-      { left: 35, top: 79, width: 38, height: 15 },
-      { left: 73, top: 61, width: 20, height: 20 },
-    ],
-  },
 };
 
 export default function RecordRoomScene({
@@ -72,49 +29,173 @@ export default function RecordRoomScene({
   onOpenTurntable: () => void;
   onArrange: () => void;
 }) {
-  const layout = LAYOUTS[room.theme];
   const byId = new Map(collections.map((collection) => [collection.id, collection]));
   const slots = room.roomSlots.map((id) => byId.get(id)).slice(0, 4);
 
-  return <section className={`interactive-record-room theme-${room.theme}`} aria-label="Interactive Record Room">
-    <div className="record-room-scene-frame">
-      <Image className="record-room-scene-photo" src={layout.image} alt="" fill priority sizes="(max-width:900px) 100vw, 1400px" />
-      <div className="record-room-scene-vignette" />
+  return <section className="component-record-room" aria-label="Interactive Audiophile Listening Room">
+    <nav className="record-room-primary-nav" aria-label="NeedleDrop room navigation">
+      <button className="active" aria-current="page"><Library /> Room</button>
+      <button onClick={() => onOpenCollection('__all__')}><Grid2X2 /> Collection</button>
+      <button onClick={onOpenTurntable}><Disc3 /> Turntable</button>
+    </nav>
+    <div className="component-prototype-note">Audiophile Listening Room prototype · the room is built from live UI components rather than a background photograph.</div>
 
-      {slots.map((collection, index) => {
-        if (!collection) return null;
-        const box = layout.collections[index];
-        const sample = collection.albums.slice(0, 4);
-        return <button
-          key={`${index}:${collection.id}`}
-          className={`room-scene-hotspot room-collection-hotspot room-slot-${index + 1}`}
-          style={boxStyle(box)}
-          onClick={() => onOpenCollection(collection.id)}
-          aria-label={`Open ${collection.name}, ${collection.albums.length} records`}
-        >
-          <span className="room-hotspot-covers" aria-hidden="true">
-            {sample.map((album, coverIndex) => <span className="room-hotspot-cover" key={album.id} style={{ zIndex: sample.length - coverIndex, transform: `translateX(${coverIndex * 16}px) rotate(${coverIndex * 1.5 - 2}deg)` }}><Image src={cover(album.coverArt, 160)} alt="" fill sizes="72px" unoptimized /></span>)}
-          </span>
-          <span className="room-hotspot-label"><Library /><span><strong>{collection.name}</strong><small>{collection.albums.length} record{collection.albums.length === 1 ? '' : 's'} · open collection</small></span></span>
-        </button>;
-      })}
+    <div className="component-room-stage">
+      <div className="component-room-wall" aria-hidden="true" />
+      <div className="component-room-floor" aria-hidden="true" />
+      <div className="component-room-ceiling-light component-room-ceiling-light-left" aria-hidden="true" />
+      <div className="component-room-ceiling-light component-room-ceiling-light-center" aria-hidden="true" />
+      <div className="component-room-ceiling-light component-room-ceiling-light-right" aria-hidden="true" />
 
-      <button className={`room-scene-hotspot room-turntable-hotspot ${playingAlbum ? 'loaded' : ''}`} style={boxStyle(layout.turntable)} onClick={onOpenTurntable} aria-label={playingAlbum ? `Open turntable playing ${playingAlbum.name}` : 'Open turntable'}>
-        <span className="turntable-hotspot-ring"><Disc3 /></span>
-        <span className="room-hotspot-label turntable-label"><Play /><span><strong>Turntable</strong><small>{playingAlbum ? 'open player' : 'choose a record first'}</small></span></span>
-      </button>
+      <div className="component-room-acoustic-wall" aria-hidden="true">
+        {Array.from({ length: 29 }).map((_, index) => <span key={index} />)}
+      </div>
 
-      {playingAlbum && <button className="room-current-jacket" style={boxStyle(layout.jacket)} onClick={() => onOpenAlbum(playingAlbum.id)} aria-label={`Open currently playing album ${playingAlbum.name} by ${playingAlbum.artist}`}>
-        <Image src={cover(playingAlbum.coverArt, 500)} alt={`${playingAlbum.name} cover`} fill sizes="150px" unoptimized />
-        <span className="room-current-jacket-badge"><span>NOW SPINNING</span><strong>{playingAlbum.name}</strong><small>{playingAlbum.artist}</small></span>
-      </button>}
+      <div className="component-room-left-built-in">
+        <RecordLibrary collection={slots[0]} side="left" onOpen={onOpenCollection} />
+      </div>
+      <div className="component-room-right-built-in">
+        <RecordLibrary collection={slots[1]} side="right" onOpen={onOpenCollection} />
+      </div>
 
-      <button className="room-scene-arrange" onClick={onArrange}><Sparkles /> Arrange room</button>
+      <div className="component-room-console">
+        <div className="component-room-console-top">
+          <div className="component-room-lamp" aria-hidden="true"><span className="component-room-lamp-shade" /><span className="component-room-lamp-stem" /><span className="component-room-lamp-glow" /></div>
+
+          <button className={`component-turntable ${playingAlbum ? 'is-loaded' : ''}`} onClick={onOpenTurntable} aria-label={playingAlbum ? `Open turntable playing ${playingAlbum.name}` : 'Open turntable'}>
+            <span className="component-turntable-deck">
+              <span className="component-turntable-platter">
+                <span className="component-turntable-record">
+                  <span className="component-turntable-label">{playingAlbum ? <Image src={cover(playingAlbum.coverArt, 160)} alt="" fill sizes="60px" unoptimized /> : <Disc3 />}</span>
+                </span>
+              </span>
+              <span className="component-tonearm-base" />
+              <span className={`component-tonearm ${playingAlbum ? 'is-playing' : ''}`} />
+              <span className="component-turntable-switch" />
+            </span>
+            <span className="component-object-label"><Disc3 /><span><strong>Turntable</strong><small>{playingAlbum ? 'Open player' : 'Choose a record first'}</small></span></span>
+          </button>
+
+          <NowPlayingJacket album={playingAlbum} onOpen={onOpenAlbum} />
+          <div className="component-room-plant" aria-hidden="true"><span /><span /><span /><span /><i /></div>
+        </div>
+
+        <div className="component-hifi-rack" aria-label="Hi-fi equipment rack">
+          <HiFiUnit kind="streamer" />
+          <HiFiUnit kind="amplifier" />
+          <HiFiUnit kind="meters" active={Boolean(playingAlbum)} />
+          <HiFiUnit kind="silver" />
+          <HiFiUnit kind="black" />
+          <HiFiUnit kind="silver" />
+        </div>
+      </div>
+
+      <div className="component-room-low-cabinet">
+        <LowCabinetCollection collection={slots[2]} onOpen={onOpenCollection} />
+      </div>
+
+      <div className="component-room-flip-crate">
+        <FlipCrateCollection collection={slots[3]} onOpen={onOpenCollection} />
+      </div>
+
+      <div className="component-room-chair" aria-hidden="true"><span className="component-chair-back" /><span className="component-chair-seat" /><span className="component-chair-base" /></div>
+      <div className="component-room-rug" aria-hidden="true" />
+
+      <button className="component-room-arrange" onClick={onArrange}><SlidersHorizontal /> Arrange room</button>
     </div>
-    <div className="room-scene-instructions"><span>Click the turntable to open the player.</span><span>Click any highlighted record shelf or bin to open that collection.</span>{playingAlbum && <span>The jacket beside the turntable is the record currently playing.</span>}</div>
+
+    <div className="component-room-legend">
+      <span><Library /> Click a record library, cabinet or crate to open the mapped collection.</span>
+      <span><Disc3 /> The turntable opens the player.</span>
+      <span><Sparkles /> The jacket on the console is the album currently loaded.</span>
+    </div>
   </section>;
 }
 
-function boxStyle(box: Box) {
-  return { left: `${box.left}%`, top: `${box.top}%`, width: `${box.width}%`, height: `${box.height}%` };
+function RecordLibrary({ collection, side, onOpen }: { collection?: RoomCollection; side: 'left' | 'right'; onOpen: (id: string) => void }) {
+  const albums = collection?.albums || [];
+  const rows = [albums.slice(0, 18), albums.slice(18, 36), albums.slice(36, 54), albums.slice(54, 72)];
+  return <button className={`component-record-library ${side}`} onClick={() => collection && onOpen(collection.id)} disabled={!collection} aria-label={collection ? `Open ${collection.name}, ${collection.albums.length} records` : 'Unmapped record library'}>
+    <span className="component-library-light" aria-hidden="true" />
+    <span className="component-library-rows">
+      {rows.map((row, rowIndex) => <span className="component-library-row" key={rowIndex}>{renderSpines(row, rowIndex * 18)}</span>)}
+    </span>
+    <span className="component-library-cabinet" aria-hidden="true"><i /><i /></span>
+    <CollectionPlaque collection={collection} fallback={side === 'left' ? 'Left record library' : 'Right record library'} />
+  </button>;
+}
+
+function LowCabinetCollection({ collection, onOpen }: { collection?: RoomCollection; onOpen: (id: string) => void }) {
+  const albums = collection?.albums.slice(0, 26) || [];
+  return <button className="component-low-cabinet-button" onClick={() => collection && onOpen(collection.id)} disabled={!collection} aria-label={collection ? `Open ${collection.name}, ${collection.albums.length} records` : 'Unmapped lower cabinet'}>
+    <span className="component-low-cabinet-spines">{renderSpines(albums, 90)}</span>
+    <CollectionPlaque collection={collection} fallback="Low record cabinet" />
+  </button>;
+}
+
+function FlipCrateCollection({ collection, onOpen }: { collection?: RoomCollection; onOpen: (id: string) => void }) {
+  const albums = collection?.albums.slice(0, 7) || [];
+  return <button className="component-flip-crate-button" onClick={() => collection && onOpen(collection.id)} disabled={!collection} aria-label={collection ? `Open ${collection.name}, ${collection.albums.length} records` : 'Unmapped flip crate'}>
+    <span className="component-crate-records">
+      {albums.map((album, index) => <span className="component-crate-jacket" key={album.id} style={{ '--crate-index': index } as CSSProperties}><Image src={cover(album.coverArt, 300)} alt="" fill sizes="120px" unoptimized /></span>)}
+      {!albums.length && Array.from({ length: 5 }).map((_, index) => <span className="component-crate-jacket component-crate-placeholder" key={index} style={{ '--crate-index': index } as CSSProperties} />)}
+    </span>
+    <span className="component-crate-front" aria-hidden="true" />
+    <CollectionPlaque collection={collection} fallback="Flip crate" />
+  </button>;
+}
+
+function NowPlayingJacket({ album, onOpen }: { album: Album | null; onOpen: (id: string) => void }) {
+  if (!album) return <div className="component-now-playing empty" aria-label="No record loaded"><div className="component-jacket-placeholder"><Disc3 /><span>Choose a record</span></div><small>JACKET STAND</small></div>;
+  return <button className="component-now-playing" onClick={() => onOpen(album.id)} aria-label={`Open ${album.name} by ${album.artist}`}>
+    <span className="component-now-playing-cover"><Image src={cover(album.coverArt, 600)} alt={`${album.name} cover`} fill sizes="180px" unoptimized /></span>
+    <span className="component-now-playing-copy"><small>NOW SPINNING</small><strong>{album.name}</strong><span>{album.artist}</span></span>
+  </button>;
+}
+
+function CollectionPlaque({ collection, fallback }: { collection?: RoomCollection; fallback: string }) {
+  return <span className="component-collection-plaque"><strong>{collection?.name || fallback}</strong><small>{collection ? `${collection.albums.length} record${collection.albums.length === 1 ? '' : 's'}` : 'Not mapped'}</small></span>;
+}
+
+function renderSpines(albums: Album[], offset: number) {
+  if (!albums.length) return Array.from({ length: 15 }).map((_, index) => <span className="component-record-spine placeholder" key={`empty-${offset + index}`} style={spineStyle(undefined, offset + index)} />);
+  return albums.map((album, index) => <span className="component-record-spine" key={album.id} title={`${album.artist} — ${album.name}`} style={spineStyle(album, offset + index)}><i>{spineText(album)}</i></span>);
+}
+
+function spineStyle(album: Album | undefined, index: number): CSSProperties {
+  const seed = hash(`${album?.id || 'empty'}:${index}`);
+  const hue = 18 + (seed % 42);
+  const saturation = 12 + (seed % 24);
+  const lightness = album ? 25 + (seed % 34) : 16 + (seed % 9);
+  const width = 5 + (seed % 8);
+  return {
+    '--spine-h': hue,
+    '--spine-s': `${saturation}%`,
+    '--spine-l': `${lightness}%`,
+    '--spine-w': `${width}px`,
+  } as CSSProperties;
+}
+
+function spineText(album: Album) {
+  const text = album.artist || album.name;
+  return text.length > 18 ? text.slice(0, 16) : text;
+}
+
+function hash(value: string) {
+  let result = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    result ^= value.charCodeAt(index);
+    result = Math.imul(result, 16777619);
+  }
+  return Math.abs(result >>> 0);
+}
+
+function HiFiUnit({ kind, active = false }: { kind: 'streamer' | 'amplifier' | 'meters' | 'silver' | 'black'; active?: boolean }) {
+  return <div className={`component-hifi-unit ${kind} ${active ? 'active' : ''}`} aria-hidden="true">
+    <span className="component-hifi-display" />
+    <span className="component-hifi-knob left" />
+    <span className="component-hifi-knob right" />
+    {kind === 'meters' && <span className="component-vu-pair"><i /><i /></span>}
+    {kind === 'amplifier' && <span className="component-hifi-buttons"><i /><i /><i /><i /><i /></span>}
+  </div>;
 }
