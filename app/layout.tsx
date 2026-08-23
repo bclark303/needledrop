@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import ArtworkRefresh from '@/components/ArtworkRefresh';
+import ClientDiagnostics from '@/components/ClientDiagnostics';
 import './globals.css';
 import './discogs.css';
 import './v4-1.css';
@@ -30,5 +31,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: '#11100d', colorScheme: 'dark' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body>{children}<ArtworkRefresh /><Script id="needledrop-service-worker" strategy="afterInteractive">{`if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}`}</Script></body></html>;
+  return <html lang="en"><body>{children}<ArtworkRefresh /><ClientDiagnostics /><Script id="needledrop-service-worker" strategy="afterInteractive">{`if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}`}</Script></body></html>;
 }
