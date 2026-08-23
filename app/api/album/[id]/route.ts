@@ -3,7 +3,7 @@ import type { AlbumDetail } from '@/components/types';
 import { resolveVirtualRelease } from '@/lib/collection-engine';
 import { getAlbumRecord, getMetadataValues, indexAlbums, listArtwork } from '@/lib/db';
 import { maybeAutoEnrich } from '@/lib/enrichment';
-import { resolveCanonicalAlbumId } from '@/lib/library';
+import { combineMergedAlbumDetails, getMergedAlbumIds, resolveCanonicalAlbumId } from '@/lib/library';
 import { subsonic } from '@/lib/subsonic';
 import { backfillArtworkCandidatesFromMeta, getMeta, saveMeta } from '@/lib/store';
 
@@ -13,8 +13,14 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
   try {
     const params = await ctx.params;
     const id = resolveCanonicalAlbumId(params.id);
-    const [root, meta] = await Promise.all([subsonic('getAlbum', { id }), getMeta(id)]);
-    const original = root.album as AlbumDetail;
+    const familyIds = getMergedAlbumIds(id);
+    const [roots, meta] = await Promise.all([
+      Promise.all(familyIds.map((albumId) => subsonic('getAlbum', { id: albumId }))),
+      getMeta(id),
+    ]);
+    const originals = roots.map((root) => root.album as AlbumDetail).filter(Boolean);
+    indexAlbums(originals);
+    const original = combineMergedAlbumDetails(originals, id);
     indexAlbums([original]);
     void maybeAutoEnrich([original]).catch(() => {});
 
@@ -36,6 +42,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
       library: getAlbumRecord(id),
       metadataValues: getMetadataValues(id),
       artwork: listArtwork(id),
+      mergedAlbumIds: familyIds,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Failed';
