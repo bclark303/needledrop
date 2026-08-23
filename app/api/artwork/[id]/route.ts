@@ -4,6 +4,7 @@ import { fetchCachedExternalArtwork } from '@/lib/artwork-cache';
 import { orderedArtworkChoices } from '@/lib/artwork-resolution';
 import { getAlbumMetaJson, getAlbumRecord } from '@/lib/db';
 import { recordDiagnostic } from '@/lib/diagnostics';
+import { classifyNavidromeArtwork } from '@/lib/navidrome-artwork';
 import { getStoredSettings } from '@/lib/settings';
 import { backfillArtworkCandidatesFromMeta } from '@/lib/store';
 import { mediaUrl } from '@/lib/subsonic';
@@ -115,19 +116,51 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
           networkError = error instanceof Error ? error.message : String(error);
           return null;
         });
+        const contentType = response?.headers.get('content-type');
         recordDiagnostic('artwork-navidrome-fetch-result', {
           requestId,
           albumId: id,
           choiceIndex,
           status: response?.status || 0,
           ok: Boolean(response?.ok),
-          contentType: response?.headers.get('content-type'),
+          contentType,
           contentLength: response?.headers.get('content-length'),
           networkError: networkError || undefined,
           durationMs: Date.now() - attemptStarted,
         }, response?.ok ? 'info' : 'warn');
-        if (response?.ok && response.body) {
-          const served = imageResponse(response, 3600, 'navidrome');
+        if (response?.ok && response.body && contentType?.toLocaleLowerCase().startsWith('image/')) {
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          const fingerprint = classifyNavidromeArtwork({
+            albumId: id,
+            artist: album.artist,
+            title: album.title,
+            bytes,
+            contentType,
+          });
+          recordDiagnostic('artwork-navidrome-fingerprint', {
+            requestId,
+            albumId: id,
+            choiceIndex,
+            hash: fingerprint.shortHash,
+            bytes: fingerprint.bytes,
+            generic: fingerprint.generic,
+            distinctAlbumCount: fingerprint.distinctAlbumCount,
+            distinctIdentityCount: fingerprint.distinctIdentityCount,
+          }, fingerprint.generic ? 'warn' : 'debug');
+
+          if (fingerprint.generic) {
+            recordDiagnostic('artwork-navidrome-generic-rejected', {
+              requestId,
+              albumId: id,
+              choiceIndex,
+              hash: fingerprint.shortHash,
+              bytes: fingerprint.bytes,
+              distinctIdentityCount: fingerprint.distinctIdentityCount,
+            }, 'warn');
+            continue;
+          }
+
+          const served = imageBytesResponse(bytes, contentType, 3600, 'navidrome');
           recordDiagnostic('artwork-request-served', {
             requestId,
             albumId: id,
@@ -138,6 +171,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
             choiceIndex,
             contentType: served.headers.get('content-type'),
             contentLength: served.headers.get('content-length'),
+            fingerprint: fingerprint.shortHash,
             durationMs: Date.now() - started,
           });
           return stampResponse(served, requestId, 'collection');
@@ -227,16 +261,14 @@ function stampResponse(response: Response, requestId: string, route: string) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-function imageResponse(response: Response, maxAge: number, source: string) {
+function imageBytesResponse(bytes: Uint8Array, contentType: string, maxAge: number, source: string) {
   const headers = new Headers();
-  const contentType = response.headers.get('content-type');
-  const contentLength = response.headers.get('content-length');
-  if (contentType) headers.set('content-type', contentType);
-  if (contentLength) headers.set('content-length', contentLength);
+  headers.set('content-type', contentType);
+  headers.set('content-length', String(bytes.byteLength));
   headers.set('cache-control', `private, max-age=${maxAge}`);
   headers.set('x-needledrop-artwork-source', source);
   headers.set('x-needledrop-artwork-cache', 'passthrough');
-  return new Response(response.body, { status: 200, headers });
+  return new Response(bytes, { status: 200, headers });
 }
 
 function placeholderResponse(artist = 'Unknown artist', title = 'Artwork unavailable') {
