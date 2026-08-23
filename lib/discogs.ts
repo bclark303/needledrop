@@ -6,6 +6,7 @@ import type {
   Song,
   VinylMeta,
 } from '@/components/types';
+import { diagnosticFetch } from './diagnostic-fetch';
 import { getDiscogsConfig } from './settings';
 import { titleSimilarity } from './text-match';
 
@@ -22,13 +23,20 @@ async function request(path: string, params?: URLSearchParams, cache: RequestCac
   if (!config.enabled || !config.token) throw new Error('DISCOGS_NOT_CONFIGURED');
   const url = new URL(path, API);
   if (params) params.forEach((value, key) => url.searchParams.append(key, value));
-  const response = await fetch(url, {
+  const response = await diagnosticFetch(url, {
     headers: {
       'User-Agent': config.userAgent,
       Authorization: `Discogs token=${config.token}`,
       Accept: 'application/vnd.discogs.v2.discogs+json',
     },
     cache,
+  }, {
+    provider: 'discogs',
+    operation: path.startsWith('/releases/') ? 'release' : path === '/database/search' ? 'search' : path,
+    data: {
+      queryKeys: [...url.searchParams.keys()].filter((key, index, values) => values.indexOf(key) === index).sort(),
+      releaseId: path.startsWith('/releases/') ? path.split('/').pop() : undefined,
+    },
   });
   if (!response.ok) {
     const message = await response.text().catch(() => '');
@@ -58,14 +66,14 @@ export async function testDiscogsConnection(tokenOverride?: string) {
   const current = await getDiscogsConfig();
   const token = tokenOverride?.trim() || current.token;
   if (!token) throw new Error('Discogs token is not configured');
-  const response = await fetch(`${API}/oauth/identity`, {
+  const response = await diagnosticFetch(`${API}/oauth/identity`, {
     headers: {
       'User-Agent': current.userAgent,
       Authorization: `Discogs token=${token}`,
       Accept: 'application/vnd.discogs.v2.discogs+json',
     },
     cache: 'no-store',
-  });
+  }, { provider: 'discogs', operation: 'connection-test' });
   if (!response.ok) throw new Error(`Discogs HTTP ${response.status}`);
   return response.json();
 }
