@@ -5,6 +5,8 @@ import { Archive, Layers3, Sparkles } from 'lucide-react';
 import type { Album, CollectionGroupMode, CollectionSort, CollectionViewMode, RecordRoomShelf } from './types';
 import { cover } from './vinyl';
 
+const SHELF_ROW_SIZE = 32;
+
 export default function CollectionShelfView({ albums, viewMode, manualShelves, activeShelf, featuredIds, onOpen, onQueue, onFeature, onAddToShelf, onRemoveFromShelf }: {
   albums: Album[];
   viewMode: CollectionViewMode;
@@ -18,7 +20,10 @@ export default function CollectionShelfView({ albums, viewMode, manualShelves, a
   onRemoveFromShelf: (albumId: string, shelfId: string) => void;
 }) {
   const actions = (album: Album) => <RecordActions album={album} manualShelves={manualShelves} activeShelf={activeShelf} featured={featuredIds.includes(album.id)} onQueue={onQueue} onFeature={onFeature} onAddToShelf={onAddToShelf} onRemoveFromShelf={onRemoveFromShelf} />;
-  if (viewMode === 'shelf') return <div className="vinyl-shelf room-vinyl-shelf"><div className="vinyl-shelf-row">{albums.map((album) => <ShelfRecord key={album.id} album={album} onOpen={onOpen} actions={actions(album)} />)}</div><div className="shelf-board" /></div>;
+  if (viewMode === 'shelf') {
+    const rows = chunkAlbums(albums, SHELF_ROW_SIZE);
+    return <div className="vinyl-shelf-stack">{rows.map((row, rowIndex) => <div className="vinyl-shelf room-vinyl-shelf" key={`shelf-${rowIndex}`}><div className="vinyl-shelf-row">{row.map((album) => <ShelfRecord key={album.id} album={album} onOpen={onOpen} actions={actions(album)} />)}</div><div className="shelf-board" /></div>)}</div>;
+  }
   if (viewMode === 'flip') return <div className="flip-bin"><div className="flip-bin-back" /><div className="flip-bin-row">{albums.map((album) => <FlipRecord key={album.id} album={album} onOpen={onOpen} actions={actions(album)} />)}</div><div className="flip-bin-front"><span>NEEDLEDROP · RECORD BIN</span></div></div>;
   return <div className="record-grid">{albums.map((album) => <GridRecord key={album.id} album={album} onOpen={onOpen} actions={actions(album)} />)}</div>;
 }
@@ -99,6 +104,13 @@ export function groupAlbums(albums: Album[], mode: CollectionGroupMode) {
   if (mode === 'artist') entries.sort((a, b) => compare(a[0], b[0]));
   else entries.sort((a, b) => numericLabel(a[0]) - numericLabel(b[0]));
   return entries.map(([label, grouped]) => ({ key: `${mode}:${label}`, label, albums: grouped }));
+}
+
+function chunkAlbums(albums: Album[], size: number) {
+  if (!albums.length) return [];
+  const rows: Album[][] = [];
+  for (let index = 0; index < albums.length; index += size) rows.push(albums.slice(index, index + size));
+  return rows;
 }
 
 function compare(a = '', b = '') { return a.localeCompare(b, undefined, { sensitivity: 'base' }); }
