@@ -18,6 +18,7 @@ import './v8-1.css';
 import './v8-1-mobile.css';
 import './v8-2.css';
 import './v8-2-theme-picker.css';
+import './v8-3.css';
 
 export const metadata: Metadata = {
   title: { default: 'NeedleDrop', template: '%s · NeedleDrop' },
