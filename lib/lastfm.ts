@@ -1,3 +1,7 @@
+import { diagnosticFetch } from './diagnostic-fetch';
+import { recordDiagnostic } from './diagnostics';
+import { APP_VERSION } from './version';
+
 export type LastFmAlbumInfo = {
   mbid?: string;
   url?: string;
@@ -18,13 +22,27 @@ export async function getLastFmAlbumInfo(artist: string, album: string, apiKey: 
     autocorrect: '1',
     format: 'json',
   });
-  const response = await fetch(`https://ws.audioscrobbler.com/2.0/?${query}`, {
-    headers: { 'User-Agent': 'NeedleDrop/0.5.0 (https://github.com/bclark303/needledrop)' },
+  const response = await diagnosticFetch(`https://ws.audioscrobbler.com/2.0/?${query}`, {
+    headers: { 'User-Agent': `NeedleDrop/${APP_VERSION} (https://github.com/bclark303/needledrop)` },
     cache: 'no-store',
+  }, {
+    provider: 'lastfm',
+    operation: 'album.getInfo',
+    data: { artist, album },
   });
   if (!response.ok) throw new Error(`Last.fm HTTP ${response.status}`);
   const data = await response.json() as Record<string, unknown>;
-  if (data.error) throw new Error(String(data.message || `Last.fm error ${data.error}`));
+  if (data.error) {
+    recordDiagnostic('provider-logical-error', {
+      provider: 'lastfm',
+      operation: 'album.getInfo',
+      code: data.error,
+      message: String(data.message || `Last.fm error ${data.error}`),
+      artist,
+      album,
+    }, 'warn');
+    throw new Error(String(data.message || `Last.fm error ${data.error}`));
+  }
   const info = (data.album || {}) as Record<string, unknown>;
   const tagsBlock = info.tags as { tag?: Array<{ name?: string }> } | undefined;
   const wiki = info.wiki as { summary?: string; content?: string } | undefined;
