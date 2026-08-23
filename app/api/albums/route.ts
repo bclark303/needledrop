@@ -3,6 +3,7 @@ import type { Album, VinylMeta } from '@/components/types';
 import { getAlbumMetaJson, indexAlbums } from '@/lib/db';
 import { maybeAutoEnrich } from '@/lib/enrichment';
 import { filterMergedAlbums } from '@/lib/library';
+import { backfillArtworkCandidatesFromMeta } from '@/lib/store';
 import { subsonic } from '@/lib/subsonic';
 
 export const runtime = 'nodejs';
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       albums: visible.map((album) => {
         const local = getAlbumMetaJson<VinylMeta>(album.id);
+        backfillArtworkCandidatesFromMeta(album.id, local);
         return {
           ...album,
           rating: local?.rating,
