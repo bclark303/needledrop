@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { getSystemJson, setSystemJson } from './db';
-import { logicalAlbumTitle, normalizedAlbumIdentity } from './album-normalization';
+import { albumLookupTitles, normalizedAlbumIdentity } from './album-normalization';
 
 const REGISTRY_KEY = 'navidrome_artwork_fingerprints_v1';
 const GENERIC_IDENTITY_THRESHOLD = 3;
@@ -95,7 +95,9 @@ function trimRegistry(registry: FingerprintRegistry) {
 
 function albumIdentity(artist: string, title: string, albumId: string) {
   const normalizedArtist = normalizedAlbumIdentity(artist);
-  const normalizedTitle = normalizedAlbumIdentity(logicalAlbumTitle(title));
+  const lookupTitles = albumLookupTitles(title);
+  const canonicalTitle = lookupTitles[lookupTitles.length - 1] || title;
+  const normalizedTitle = normalizedAlbumIdentity(canonicalTitle);
   return normalizedArtist && normalizedTitle ? `${normalizedArtist}\u0000${normalizedTitle}` : `album:${albumId}`;
 }
 
