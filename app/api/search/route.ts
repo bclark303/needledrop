@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Album, VinylMeta } from '@/components/types';
 import { getAlbumMetaJson, indexAlbums } from '@/lib/db';
-import { filterMergedAlbums } from '@/lib/library';
+import { prepareVisibleAlbums } from '@/lib/library';
 import { subsonic } from '@/lib/subsonic';
 
 export async function GET(req: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const result = root.searchResult3 || {};
     const albums = (result.album || []) as Album[];
     indexAlbums(albums);
-    const visible = filterMergedAlbums(albums).map((album) => ({
+    const visible = prepareVisibleAlbums(albums).map((album) => ({
       ...album,
       rating: getAlbumMetaJson<VinylMeta>(album.id)?.rating,
       navidromeCoverArt: album.coverArt,

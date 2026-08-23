@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { Album, VinylMeta } from '@/components/types';
 import { getAlbumMetaJson, indexAlbums } from '@/lib/db';
-import { filterMergedAlbums } from '@/lib/library';
+import { prepareVisibleAlbums } from '@/lib/library';
 import { subsonic } from '@/lib/subsonic';
 
 export async function GET() {
@@ -9,7 +9,7 @@ export async function GET() {
     const root = await subsonic('getAlbumList2', { type: 'random', size: 12 });
     const albums = (root.albumList2?.album || []) as Album[];
     indexAlbums(albums);
-    const album = filterMergedAlbums(albums)[0];
+    const album = prepareVisibleAlbums(albums)[0];
     if (!album) return NextResponse.json({ album: null });
     return NextResponse.json({
       album: {

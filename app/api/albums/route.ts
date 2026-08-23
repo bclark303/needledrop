@@ -3,7 +3,7 @@ import type { Album, VinylMeta } from '@/components/types';
 import { getAlbumMetaJson, getAlbumRecord, indexAlbums, listArtwork } from '@/lib/db';
 import { diagnosticsActive, recordDiagnostic } from '@/lib/diagnostics';
 import { maybeAutoEnrich } from '@/lib/enrichment';
-import { filterMergedAlbums } from '@/lib/library';
+import { prepareVisibleAlbums } from '@/lib/library';
 import { backfillArtworkCandidatesFromMeta } from '@/lib/store';
 import { subsonic } from '@/lib/subsonic';
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const root = await subsonic('getAlbumList2', { type, size, offset, genre, fromYear, toYear });
     const albums = (root.albumList2?.album ?? []) as Album[];
     indexAlbums(albums);
-    const visible = filterMergedAlbums(albums);
+    const visible = prepareVisibleAlbums(albums);
     void maybeAutoEnrich(visible).catch((error) => {
       recordDiagnostic('collection-auto-enrich-error', { error: error instanceof Error ? error.message : String(error) }, 'warn');
     });

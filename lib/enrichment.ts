@@ -4,12 +4,14 @@ import {
   getEnrichmentStatus,
   getMetadataValues,
   indexAlbums,
+  listArtwork,
   setEnrichmentStatus,
   updateAlbumIdentity,
   upsertArtworkCandidate,
   upsertMetadataValue,
   type EnrichmentStatus,
 } from './db';
+import { albumLookupTitles } from './album-normalization';
 import { resolveCanonicalArtwork } from './artwork-resolution';
 import { getMeta, saveMeta } from './store';
 import { getStoredSettings } from './settings';
@@ -17,9 +19,10 @@ import { findRelease, findReleaseGroup } from './musicbrainz';
 import { artworkRole, getCoverArtArchiveImages } from './coverartarchive';
 import { getLastFmAlbumInfo } from './lastfm';
 import { searchDiscogs } from './discogs';
+import { navidromeArtworkKnownGeneric } from './navidrome-artwork';
 
 let running: Promise<void> | null = null;
-const ARTWORK_RESOLVER_VERSION = 3;
+const ARTWORK_RESOLVER_VERSION = 4;
 
 function recentEnough(value?: string) {
   if (!value) return false;
@@ -37,7 +40,9 @@ function resolverCurrent(albumId: string) {
 
 function hasArtwork(albumId: string, sourceOrder?: string[]) {
   const artwork = resolveCanonicalArtwork(albumId, sourceOrder);
-  return Boolean(artwork.artwork || artwork.useNavidrome);
+  if (artwork.artwork) return true;
+  if (artwork.useNavidrome) return !navidromeArtworkKnownGeneric(albumId);
+  return false;
 }
 
 export async function maybeAutoEnrich(albums: Album[]) {
@@ -46,7 +51,7 @@ export async function maybeAutoEnrich(albums: Album[]) {
   const pending = albums.filter((album) => {
     const record = getAlbumRecord(album.id);
     if (!record || record.enrichmentStatus !== 'complete' || !recentEnough(record.enrichedAt)) return true;
-    return !hasArtwork(album.id, settings.artworkSourceOrder) && !resolverCurrent(album.id);
+    return !resolverCurrent(album.id);
   });
   if (!pending.length) return;
   startEnrichment(pending, false);
@@ -83,7 +88,7 @@ async function run(albums: Album[], force: boolean) {
       setEnrichmentStatus(status);
       const existing = getAlbumRecord(album.id);
       const artworkAlreadyResolved = hasArtwork(album.id, settings.artworkSourceOrder);
-      const needsNewArtworkPass = !artworkAlreadyResolved && !resolverCurrent(album.id);
+      const needsNewArtworkPass = !resolverCurrent(album.id);
       if (!force && existing?.enrichmentStatus === 'complete' && recentEnough(existing.enrichedAt) && !needsNewArtworkPass) {
         status = {
           ...status,
@@ -136,6 +141,7 @@ export async function enrichAlbum(album: Album) {
   const settings = await getStoredSettings();
   const meta = await getMeta(album.id);
   if (meta) await saveMeta(album.id, {});
+  const lookupTitles = albumLookupTitles(album.name);
 
   recordDiscogsProvenance(album.id, meta);
 
@@ -147,7 +153,7 @@ export async function enrichAlbum(album: Album) {
     if (meta?.discogsReleaseId && !releaseId) {
       const exact = await findRelease({
         artist: album.artist,
-        title: meta.pressingTitle || album.name,
+        title: meta.pressingTitle || lookupTitles[0] || album.name,
         country: meta.country,
         year: meta.releaseYear || album.year,
         catalogNumber: meta.catalogNumber,
@@ -162,11 +168,14 @@ export async function enrichAlbum(album: Album) {
     }
 
     if (!releaseGroupId) {
-      const group = await findReleaseGroup(album.artist, album.name).catch(() => null);
-      if (group) {
+      for (const lookupTitle of lookupTitles) {
+        const group = await findReleaseGroup(album.artist, lookupTitle).catch(() => null);
+        if (!group) continue;
         releaseGroupId = group.id;
         upsertMetadataValue(album.id, 'musicbrainzReleaseGroupId', group.id, 'musicbrainz', group.id, group.score >= 90 ? 'high' : 'matched', true);
+        if (lookupTitle !== album.name) upsertMetadataValue(album.id, 'normalizedLookupTitle', lookupTitle, 'needledrop', 'title-normalizer-v1', 'system');
         matched = true;
+        break;
       }
     }
   }
@@ -183,17 +192,26 @@ export async function enrichAlbum(album: Album) {
     if (releaseGroupId) await importCoverArt(album.id, 'release-group', releaseGroupId, 'release-group');
   }
 
-  // For albums without embedded/Navidrome artwork, always keep a few Discogs
-  // search covers as secondary candidates. A dead CAA URL should never block a
-  // useful Discogs cover from being available at render time. Search results
-  // remain artwork-only fallbacks and never become the selected physical pressing.
+  // Keep a Discogs search cover as a last-resort external candidate for every
+  // auto-mode album. It remains library-scope, so exact/release-group artwork
+  // and a legitimate Navidrome cover still win. If Navidrome later fingerprints
+  // as a generic placeholder, the artwork route can safely fall through here.
   const indexed = getAlbumRecord(album.id);
-  const needsDiscogsFallback = !indexed?.navidromeCoverArt || !hasArtwork(album.id, settings.artworkSourceOrder);
+  const hasDiscogsCandidate = listArtwork(album.id).some((item) => item.source === 'discogs' && item.role === 'front' && item.remoteUrl);
+  const needsDiscogsFallback = indexed?.artworkMode === 'auto' && !hasDiscogsCandidate;
   if (needsDiscogsFallback && settings.discogsEnabled !== false && settings.discogsToken?.trim()) {
-    const results = await searchDiscogs(album.artist, album.name).catch(() => []);
-    const usable = results
-      .filter((result: Record<string, unknown>) => usableDiscogsImage(result.cover_image) || usableDiscogsImage(result.thumb))
-      .slice(0, 6);
+    let usable: Array<Record<string, unknown>> = [];
+    let matchedLookupTitle = lookupTitles[0] || album.name;
+    for (const lookupTitle of lookupTitles) {
+      const results = await searchDiscogs(album.artist, lookupTitle).catch(() => []);
+      usable = results
+        .filter((result: Record<string, unknown>) => usableDiscogsImage(result.cover_image) || usableDiscogsImage(result.thumb))
+        .slice(0, 6);
+      if (usable.length) {
+        matchedLookupTitle = lookupTitle;
+        break;
+      }
+    }
     for (const result of usable) {
       const releaseIdValue = Number(result.id);
       const remoteUrl = usableDiscogsImage(result.cover_image) || usableDiscogsImage(result.thumb);
@@ -210,7 +228,7 @@ export async function enrichAlbum(album: Album) {
       upsertMetadataValue(
         album.id,
         'artworkFallbackMatch',
-        { releaseId: releaseIdValue, title: result.title, country: result.country, year: result.year },
+        { releaseId: releaseIdValue, title: result.title, country: result.country, year: result.year, lookupTitle: matchedLookupTitle },
         'discogs',
         String(releaseIdValue),
         'album-match',
@@ -221,7 +239,11 @@ export async function enrichAlbum(album: Album) {
 
   let lastfmPatch: Partial<VinylMeta> = {};
   if (settings.lastfmEnabled !== false && settings.lastfmApiKey?.trim()) {
-    const lastfm = await getLastFmAlbumInfo(album.artist, album.name, settings.lastfmApiKey).catch(() => null);
+    let lastfm: Awaited<ReturnType<typeof getLastFmAlbumInfo>> | null = null;
+    for (const lookupTitle of lookupTitles) {
+      lastfm = await getLastFmAlbumInfo(album.artist, lookupTitle, settings.lastfmApiKey).catch(() => null);
+      if (lastfm) break;
+    }
     if (lastfm) {
       updateAlbumIdentity(album.id, {
         lastfmMbid: lastfm.mbid,
@@ -238,14 +260,13 @@ export async function enrichAlbum(album: Album) {
     }
   }
 
-  upsertMetadataValue(album.id, 'artworkResolverVersion', ARTWORK_RESOLVER_VERSION, 'needledrop', 'artwork-v3', 'system', true);
+  upsertMetadataValue(album.id, 'artworkResolverVersion', ARTWORK_RESOLVER_VERSION, 'needledrop', 'artwork-v4', 'system', true);
 
   const enrichedAt = new Date().toISOString();
   updateAlbumIdentity(album.id, { enrichmentStatus: 'complete', enrichmentError: undefined, enrichedAt });
   await saveMeta(album.id, { musicbrainzReleaseId: releaseId, musicbrainzReleaseGroupId: releaseGroupId, ...lastfmPatch, enrichedAt });
 
-  const artwork = resolveCanonicalArtwork(album.id, settings.artworkSourceOrder);
-  return { matched, artworkResolved: Boolean(artwork.artwork || artwork.useNavidrome) };
+  return { matched, artworkResolved: hasArtwork(album.id, settings.artworkSourceOrder) };
 }
 
 function usableDiscogsImage(value: unknown) {
@@ -278,9 +299,13 @@ async function importCoverArt(albumId: string, scope: 'release' | 'release-group
       role: artworkRole(image),
       sourceKey: `caa:${scope}:${sourceId}:${image.id || index}`,
       sourceId,
-      remoteUrl: image.image,
+      remoteUrl: normalizeCoverArtUrl(image.image),
     });
   });
+}
+
+function normalizeCoverArtUrl(value: string) {
+  return value.replace(/^http:\/\/coverartarchive\.org\//i, 'https://coverartarchive.org/');
 }
 
 function recordDiscogsProvenance(albumId: string, meta: VinylMeta | null) {
