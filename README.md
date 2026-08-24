@@ -1,20 +1,66 @@
 # NeedleDrop
 
-NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or a record shelf, select an exact pressing, put a record on an animated turntable, lower the needle, flip sides, and queue albums on an automatic changer spindle.
+NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.7.3**
+Current version: **v0.8.3**
 
-## v0.7.3 — Repair search overrides
+## v0.8.3 — Record Room polish and functional hi-fi
 
-Track Repair now supports persistent per-album overrides for libraries and Usenet releases whose names carry edition noise.
+The component-built Audiophile Listening Room is the current Record Room prototype and the primary v0.8 interaction model.
 
-- **Search album title** lets NeedleDrop search using the clean core album name without changing the album name shown in the collection. For example, a Navidrome entry such as `Dirt UK 1992 Remastered` can search simply as `Dirt`.
-- The clean search title becomes the expected album identity while candidate release names may still carry country, year, remaster/edition, codec and bit-depth suffixes.
-- **Repair folder name** independently controls the album directory created under the isolated `/music-repair` tree.
-- Both values are stored per album in NeedleDrop's SQLite database and can be edited from the album availability panel before a repair search.
-- Verified direct repair still promotes into the actual existing album directory reported by Navidrome; the folder override does not rename or replace a main-library folder.
+- LP spine browsing now uses tall, narrow record proportions and contained physical shelf sections instead of an unbounded horizontal row.
+- Pull-out jackets render as overlays so opening a record does not stretch or reflow the shelf.
+- Room collection plaques stay attached to their furniture and avoid covering record content.
+- VU-meter needles are constrained inside their meter frames.
+- The integrated amplifier is interactive and provides working **Volume**, **Balance**, **Bass**, **Mid**, and **Treble** controls plus reset.
+- Volume uses the normal browser audio element. Balance and EQ activate a Web Audio processing chain only after the listener changes a tone/balance control, preserving normal playback behavior otherwise.
+- Hi-fi settings are stored locally in the browser.
 
-## v0.7.2 — NZB Track Repair
+## v0.8.2 — Component-built Audiophile Listening Room
+
+The original photograph/hotspot Record Room experiment was retired in favour of a room built entirely from live NeedleDrop UI components.
+
+- Left and right vinyl libraries, a low record cabinet, and a front flip crate display records from the collections mapped to them.
+- Record furniture is itself clickable and opens the associated NeedleDrop collection.
+- The turntable is an interactive room component linked to the existing player.
+- The currently loaded album jacket is displayed beside the turntable and opens the album.
+- Room / Collection / Turntable navigation is available directly inside the room experience.
+- The Audiophile Listening Room is the active prototype. The Bedroom Listening Nook and Record Collector Room remain intentionally disabled until the component-room model is finalized.
+
+## v0.8.0–v0.8.1 — Record Room and collection organization
+
+- Per-user Record Room configuration is persisted in NeedleDrop's SQLite database.
+- Collection sort, grouping, and view mode persist across devices for each Navidrome user.
+- Manual shelves/crates and live smart shelves support favourites, rating, decade, genre, and recent additions.
+- Featured records and physical-style flip-bin browsing complement the grid and spine-shelf collection views.
+- Four room furniture slots can be mapped to All Records or any saved shelf/crate.
+- Clicking room furniture opens the real filtered collection rather than maintaining a duplicate room-only library.
+
+## v0.7.10 — Canonical pressing artwork
+
+- Every image from the selected Discogs pressing can be explicitly chosen with **Use for collection**.
+- The chosen image is promoted into NeedleDrop's canonical artwork table and pinned for the album.
+- Album, Collection, and Turntable artwork therefore use the same persisted choice.
+- Mutable canonical artwork responses are revalidated and versioned to avoid stale browser/Navidrome cache results.
+
+## v0.7.9 — Artwork and multi-disc fixes
+
+- Repeated generic Navidrome artwork is detected by persistent content fingerprint and rejected after it is observed across multiple distinct albums.
+- Metadata lookup normalization handles common CD/disc suffixes and trailing edition/region qualifiers.
+- Cover Art Archive HTTP image URLs are upgraded to HTTPS when imported.
+- Strict `CD/Disc/Disk N` album splits are automatically combined into one logical multi-disc release when artist/title/year/disc-number checks prove they belong together.
+
+## v0.7.8 — App-wide diagnostics
+
+NeedleDrop's diagnostics subsystem can capture a sanitized, structured reproduction of intermittent issues without requiring a separate volume mount.
+
+- Browser errors, internal API timing/status, route/lifecycle/network state, failed resources, long tasks, storage/service-worker state, and playback media events.
+- Navidrome, Discogs, MusicBrainz, and Last.fm provider request traces with latency/status and safe retry/rate-limit headers.
+- Runtime/container/process health, SQLite integrity/pragmas/WAL status, filesystem capacity/permissions, data/cache inventory, and server resource snapshots.
+- Detailed artwork candidate, fallback, cache, enrichment, and browser-load telemetry.
+- Admin controls in Library Manager for clean capture, stop, timeline markers, snapshots, clear, and sanitized JSON export.
+
+## v0.7.2–v0.7.3 — NZB Track Repair
 
 NZB Track Repair is the preferred way to fill individual gaps in an otherwise playable virtual record. It is optional and intended only for material you are authorized to retrieve.
 
@@ -23,12 +69,12 @@ NZB Track Repair is the preferred way to fill individual gaps in an otherwise pl
 - **Repair missing tracks** first searches and downloads only NZB manifests. No music payload is queued until you choose a candidate.
 - Candidate ranking considers artist/album identity, lossless preference, visible audio filenames, and how many missing tracks can be recognized directly in the NZB manifest.
 - If an NZB contains RARs or obfuscated names, NeedleDrop can still let SAB download/unpack it and then inspect the extracted audio.
-- Extracted audio is identified using filenames plus embedded title, artist, album, track-number and duration metadata.
+- Extracted audio is identified using filenames plus embedded title, artist, album, track-number, and duration metadata.
 - Only confidently matched requested tracks are copied into the dedicated repair-import folder; the rest of the temporary album is discarded when safe cleanup is enabled.
 - SAB jobs get a unique NeedleDrop repair token. Automatic cleanup only removes a completed staging directory when it is inside the configured repair root and its folder name contains that token.
 - After a successful repair, NeedleDrop triggers a Navidrome/library rescan and remaps the selected physical release.
 - **Verified direct album repair** is an advanced opt-in mode. A repaired track is still retained in the isolated repair library first, then a second stricter verification pass can promote it into the album's existing Navidrome folder. Existing files are never overwritten; tracks that do not pass the stricter check remain isolated.
-- Direct album repair must be enabled globally and then explicitly selected for an individual repair. The isolated repair library remains the default.
+- v0.7.3 adds persistent per-album **Search album title** and **Repair folder name** overrides for libraries/releases containing edition, year, region, remaster, or similar naming noise.
 - Lidarr remains available as an optional album-level fallback.
 
 ### Track Repair storage model
@@ -82,31 +128,28 @@ NeedleDrop resolves the destination from song paths reported by Navidrome, refus
 - Albums report **Fully playable**, **Partially playable**, or **Collection only**.
 - Optional Lidarr integration can add/monitor an album and run an album search when tracks are missing.
 - v0.7.1 adds formatting-tolerant matching so metadata differences such as `God Smack` vs `Godsmack` and `Sick Man` vs `Sickman` do not create false missing-track reports.
-- v0.7.3 adds per-album Track Repair search-title and repair-folder overrides for edition/year/region naming differences.
 
-## v0.6.x — library management and record shelf
+## v0.6.x — Library management and physical collection views
 
 - **Manual library rescan** asks Navidrome to scan its folders, then rebuilds NeedleDrop's complete album index and starts enrichment for new/unresolved records.
 - **Duplicate management** detects conservative artist/title duplicate groups. Choose one Navidrome album ID to keep visible; other copies are hidden in NeedleDrop only. Merges are reversible and never delete or modify Navidrome data.
-- **Artwork resolver v3** retains multiple candidates and actually tries them in sequence instead of assuming a stored URL is valid.
-- Albums without embedded/Navidrome art keep Cover Art Archive and Discogs fallback candidates available at the same time, so a dead remote image can fall through to another source.
-- Discogs image requests use the configured Discogs token where applicable.
-- Generated "artwork not found" jackets are no longer cached, preventing an early placeholder from sticking after enrichment later succeeds.
+- **Artwork resolver** retains multiple candidates and tries actual image responses in priority order instead of assuming a stored URL is valid.
+- Albums without embedded/Navidrome art keep Cover Art Archive and Discogs fallback candidates available together, so a dead remote image can fall through to another source.
 - Each album's artwork panel includes **Resolve again** for an immediate one-record metadata/artwork retry.
 - **My rating** adds a local 1–5 star rating that can be used to sort the collection.
-- Collection organization includes artist/band, album title, oldest/newest chronology, rating, recently added, recently played, most played and favourites, plus optional grouping by artist/band, decade or year.
-- **Record Shelf** view displays albums spine-on; hover/focus pulls a jacket out so the front cover becomes visible.
-- A PNG NeedleDrop icon is included for Unraid, browser/PWA metadata and clients that do not render the SVG icon.
+- Collection organization includes artist/band, album title, oldest/newest chronology, rating, recently added, recently played, most played, and favourites, plus optional grouping by artist/band, decade, or year.
+- Grid, spine-shelf, and flip-bin collection views are available.
+- A PNG NeedleDrop icon is included for Unraid, browser/PWA metadata, and clients that do not render the SVG icon.
 
-## v0.5.x — canonical metadata library
+## v0.5.x — Canonical metadata library
 
-NeedleDrop maintains its own authoritative collection database at `/data/needledrop.db` using SQLite. Navidrome remains the source of playable audio and normal library membership, while NeedleDrop stores physical-release identity, artwork choices, external-source matches, provenance, local overrides and repair state used by the vinyl interface.
+NeedleDrop maintains its own authoritative collection database at `/data/needledrop.db` using SQLite. Navidrome remains the source of playable audio and normal library membership, while NeedleDrop stores physical-release identity, artwork choices, external-source matches, provenance, local overrides, collection organization, and repair state used by the vinyl interface.
 
 - Existing `/data/needledrop.json` and `/data/settings.json` data is migrated automatically on first use.
 - Discogs remains the preferred exact physical-pressing source.
 - MusicBrainz supplies canonical release/release-group identity matching.
 - Cover Art Archive supplies exact-release and release-group artwork.
-- Optional Last.fm integration supplies community tags, album summaries, listener/play-count context and matching identifiers.
+- Optional Last.fm integration supplies community tags, album summaries, listener/play-count context, and matching identifiers.
 - Artwork candidates and source provenance are retained in SQLite instead of being overwritten by later refreshes.
 - Per-album artwork can be left on **Auto**, forced to raw Navidrome artwork, or pinned to a specific Discogs/Cover Art Archive candidate.
 - Settings allow metadata and artwork source priority to be reordered.
@@ -118,13 +161,13 @@ NeedleDrop maintains its own authoritative collection database at `/data/needled
 | Data | Primary role |
 | --- | --- |
 | Navidrome | playable audio and library membership |
-| Discogs | exact physical pressing, sides, track positions, labels, catalogue numbers, credits and pressing artwork |
+| Discogs | exact physical pressing, sides, track positions, labels, catalogue numbers, credits, and pressing artwork |
 | MusicBrainz | canonical release / release-group identity |
 | Cover Art Archive | exact-release and release-group artwork |
 | Last.fm | community tags, descriptive/popularity metadata |
 | Newznab/NZBHydra2/Prowlarr | optional repair candidate search |
 | SABnzbd | optional temporary repair download/unpack |
-| NeedleDrop | final selected values, local overrides, track mapping, duplicate presentation, artwork and repair authority |
+| NeedleDrop | final selected values, local overrides, track mapping, duplicate presentation, artwork, collection organization, and repair authority |
 
 A manual selection in NeedleDrop always wins over automatic source priority.
 
@@ -133,25 +176,25 @@ A manual selection in NeedleDrop always wins over automatic source priority.
 ### v0.4.1 — Unraid/appdata permission hotfix
 
 - `/data` ownership is automatically repaired before NeedleDrop starts.
-- Configurable `PUID`, `PGID` and `UMASK` values are supported.
+- Configurable `PUID`, `PGID`, and `UMASK` values are supported.
 - The Unraid template defaults to `PUID=99` and `PGID=100` (`nobody:users`).
 
-### v0.4.0 — automatic record changer
+### v0.4.0 — Automatic record changer
 
 - Changer/spindle queue inspired by classic automatic turntables.
-- Add, reorder, remove, clear or immediately play queued records.
+- Add, reorder, remove, clear, or immediately play queued records.
 - Vinyl Mode retains manual side flips; after the final side, the next queued record drops automatically.
 
-### v0.3.0 — animated turntable
+### v0.3.0 — Animated turntable
 
-- Animated platter, record and tonearm.
-- Click/tap groove placement, cue lift/lower and motor controls.
+- Animated platter, record, and tonearm.
+- Click/tap groove placement, cue lift/lower, and motor controls.
 - 33⅓ / 45 / 78 RPM plus ±8% pitch and optional real speed/pitch simulation.
 
-### v0.2.x — Discogs, branding and settings
+### v0.2.x — Discogs, branding, and settings
 
 - Exact Discogs release selection and A/B/C/D physical-side mapping.
-- Release artwork, credits, identifiers and notes.
+- Release artwork, credits, identifiers, and notes.
 - Browser/PWA/Unraid icon family and visible app version.
 - In-app system settings and connection tests.
 
@@ -163,7 +206,9 @@ Browser / installed PWA
         v
    NeedleDrop :3000
         |
-        +--> /data/needledrop.db  (canonical collection + settings + mappings + repair state)
+        +--> /data/needledrop.db  (canonical collection + settings + mappings + room config + repair state)
+        +--> /data/artwork-cache  (persistent upstream artwork cache)
+        +--> /data/diagnostics    (bounded, admin-controlled diagnostic captures)
         |
         +--> Navidrome /rest/*    (audio/playback/library scan)
         +--> Discogs API          (physical releases + fallback artwork)
@@ -222,11 +267,12 @@ Then restart the container. In Unraid, **Force Update** performs the equivalent 
 ## Security notes
 
 - Navidrome passwords are not stored. Login derives standard Subsonic token authentication and stores it in an AES-256-GCM encrypted HttpOnly cookie.
-- Discogs, Last.fm, Lidarr, indexer and SAB credentials are stored server-side in NeedleDrop's appdata database and are never returned to the browser.
+- Discogs, Last.fm, Lidarr, indexer, and SAB credentials are stored server-side in NeedleDrop's appdata database and are never returned to the browser.
 - With `NEEDLEDROP_ADMIN_USERS` blank, any authenticated Navidrome user can manage system settings and initiate repairs. Set it for multi-user installations.
 - NZB repair candidate download URLs remain server-side and expire from NeedleDrop's candidate cache.
 - Track Repair uses a dedicated staging root and a dedicated import root; cleanup is refused unless the completed job folder is inside the configured staging root and carries the request's unique token.
 - Verified direct album repair is disabled by default, must be selected per repair, requires a second strict verification pass, refuses destination paths outside the configured library root, and never overwrites an existing file.
+- Diagnostic exports are sanitized before download and the capture subsystem has bounded storage/event limits.
 - The container starts with only enough privilege to repair `/data`, then drops privileges before launching Node.
 - Do not expose NeedleDrop directly to the public Internet over plain HTTP.
 
