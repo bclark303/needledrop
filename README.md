@@ -2,7 +2,15 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.8.3**
+Current version: **v0.8.4**
+
+## v0.8.4 — Post-release cleanup
+
+- Refresh documentation through the complete v0.8 Record Room milestone and the v0.7.8–v0.7.10 diagnostics/artwork fixes.
+- Synchronize MusicBrainz User-Agent defaults in `.env.example`, Docker Compose, and the Unraid template with the current release.
+- Remove the retired v0.8.1 photograph/hotspot Record Room CSS and its obsolete mobile override while retaining the collection/navigation styles still used by the component-built room.
+- Bump the PWA cache so clients do not retain the removed room CSS.
+- No collection, metadata, playback, repair, or hi-fi behavior changes are intended.
 
 ## v0.8.3 — Record Room polish and functional hi-fi
 
