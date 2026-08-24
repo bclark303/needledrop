@@ -11,7 +11,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       NEEDLEDROP_DATA_DIR: /data
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.7.3 (https://github.com/bclark303/needledrop)}
+      MUSICBRAINZ_USER_AGENT: ${MUSICBRAINZ_USER_AGENT:-NeedleDrop/0.8.4 (https://github.com/bclark303/needledrop)}
       DISCOGS_TOKEN: ${DISCOGS_TOKEN:-}
       LASTFM_API_KEY: ${LASTFM_API_KEY:-}
       LIDARR_URL: ${LIDARR_URL:-}
