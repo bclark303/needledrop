@@ -6,11 +6,9 @@ import type {
   RecordRoomShelf,
   RecordRoomShelfPresentation,
   RecordRoomSmartRule,
-  RecordRoomTheme,
 } from '@/components/types';
 import { getSystemJson, setSystemJson } from './db';
 
-const THEMES = new Set<RecordRoomTheme>(['audiophile', 'teen-bedroom', 'record-store']);
 const SORTS = new Set<CollectionSort>(['artist', 'album', 'yearAsc', 'yearDesc', 'rating', 'newest', 'recent', 'frequent', 'starred']);
 const VIEWS = new Set<CollectionViewMode>(['grid', 'shelf', 'flip']);
 const GROUPS = new Set<CollectionGroupMode>(['none', 'artist', 'decade', 'year']);
@@ -57,7 +55,9 @@ export function normalizeRecordRoom(value: unknown): RecordRoomConfig {
   const roomSlots = normalizeRoomSlots(input.roomSlots, ids);
 
   return {
-    theme: THEMES.has(input.theme as RecordRoomTheme) ? input.theme as RecordRoomTheme : DEFAULT_RECORD_ROOM.theme,
+    // The photograph-based v0.8.1 themes were retired. Until another component room is
+    // implemented, normalize legacy profiles to the only room the UI can actually render.
+    theme: DEFAULT_RECORD_ROOM.theme,
     sort: SORTS.has(input.sort as CollectionSort) ? input.sort as CollectionSort : DEFAULT_RECORD_ROOM.sort,
     viewMode: VIEWS.has(input.viewMode as CollectionViewMode) ? input.viewMode as CollectionViewMode : DEFAULT_RECORD_ROOM.viewMode,
     groupMode: GROUPS.has(input.groupMode as CollectionGroupMode) ? input.groupMode as CollectionGroupMode : DEFAULT_RECORD_ROOM.groupMode,
