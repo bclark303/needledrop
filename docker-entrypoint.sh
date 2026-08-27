@@ -20,4 +20,10 @@ mkdir -p "$DATA_DIR"
 chown -R "$PUID:$PGID" "$DATA_DIR"
 
 umask "${UMASK:-002}"
+
+# Next.js standalone uses HOSTNAME as its bind address. Docker normally sets
+# HOSTNAME to the container ID, which prevents localhost/Tailscale Serve from
+# reaching the application. Bind to all container interfaces instead.
+export HOSTNAME=0.0.0.0
+
 exec su-exec "$PUID:$PGID" "$@"
