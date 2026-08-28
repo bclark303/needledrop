@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { Gauge, Layers3, Pause, Play, Power, RotateCcw, Volume2 } from 'lucide-react';
 import type { AlbumDetail, ArtworkSource, Song, TurntableSpeed, VinylMeta } from './types';
-import { nominalSpeed, selectedReleaseImage } from './vinyl';
+import { buildDisplaySides, buildPlaybackSides, fmt, nominalSpeed, selectedReleaseImage } from './vinyl';
 
 const SPEEDS: Array<{ value: TurntableSpeed; label: string }> = [
   { value: 33.333, label: '33⅓' },
@@ -15,6 +15,9 @@ export default function Turntable({
   album,
   meta,
   current,
+  currentIndex,
+  tracks,
+  strict,
   playing,
   motorOn,
   cueDown,
@@ -30,12 +33,16 @@ export default function Turntable({
   onSpeed,
   onPitch,
   onNeedle,
+  onSelectTrack,
   onOpenChanger,
   artworkOrder,
 }: {
   album: AlbumDetail;
   meta: VinylMeta | null;
   current: Song | null;
+  currentIndex: number;
+  tracks: Song[];
+  strict: boolean;
   playing: boolean;
   motorOn: boolean;
   cueDown: boolean;
@@ -51,6 +58,7 @@ export default function Turntable({
   onSpeed: (speed: TurntableSpeed) => void;
   onPitch: (pitch: number) => void;
   onNeedle: (progress: number) => void;
+  onSelectTrack: (index: number) => void;
   onOpenChanger: () => void;
   artworkOrder?: ArtworkSource[];
 }) {
@@ -58,6 +66,9 @@ export default function Turntable({
   const spinSeconds = Math.max(0.55, 60 / speed);
   const armAngle = -18 + Math.max(0, Math.min(1, sideProgress)) * 26;
   const nativeSpeed = nominalSpeed(meta);
+  const playbackSides = buildPlaybackSides(album, meta);
+  const displaySides = buildDisplaySides(album, meta, playbackSides);
+  const trackIndexById = new Map(tracks.map((song, index) => [song.id, index]));
 
   function placeNeedle(event: React.PointerEvent<HTMLButtonElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -111,6 +122,34 @@ export default function Turntable({
         <h1>{album.name}</h1>
         <h2>{album.artist}</h2>
         <div className="now-track"><span>Side {sideLabel}</span><strong>{current?.title || 'Needle is up'}</strong><small>{Math.round(sideProgress * 100)}% through this side</small></div>
+
+        <div className={`turntable-tracklist ${strict ? 'display-only' : 'selectable'}`}>
+          <div className="turntable-tracklist-heading"><strong>TRACK LIST</strong><span>{strict ? 'Vinyl Mode · display only' : 'Normal Mode · select a track'}</span></div>
+          <div className="turntable-tracklist-scroll">
+            {displaySides.map((side) => <section className="turntable-side-list" key={side.label} aria-label={`Side ${side.label}`}>
+              <div className="turntable-side-heading"><strong>Side {side.label}</strong><span>{side.rows.length} track{side.rows.length === 1 ? '' : 's'}</span></div>
+              <ol>
+                {side.rows.map((row, rowIndex) => {
+                  const targetIndex = row.song ? trackIndexById.get(row.song.id) : undefined;
+                  const active = Boolean(row.song && current?.id === row.song.id && currentIndex === targetIndex);
+                  const selectable = !strict && targetIndex !== undefined;
+                  const duration = row.duration || (row.song?.duration ? fmt(row.song.duration) : '—');
+                  const content = <>
+                    <span className="turntable-track-position">{row.position || `${side.label}${rowIndex + 1}`}</span>
+                    <span className="turntable-track-copy"><strong>{row.title}</strong>{active ? <small className="is-playing"><Play size={10} fill="currentColor" /> Now playing</small> : !row.song ? <small>Unavailable in library</small> : null}</span>
+                    <span className="turntable-track-duration">{duration}</span>
+                  </>;
+                  return <li key={`${side.label}-${row.position || rowIndex}-${row.title}`} className={active ? 'active' : !row.song ? 'unavailable' : ''}>
+                    {selectable
+                      ? <button onClick={() => onSelectTrack(targetIndex!)} aria-current={active ? 'true' : undefined} aria-label={`Play ${row.title}`}>{content}</button>
+                      : <div className="turntable-track-row" aria-current={active ? 'true' : undefined}>{content}</div>}
+                  </li>;
+                })}
+              </ol>
+            </section>)}
+          </div>
+        </div>
+
         <button className="transport-primary" onClick={onToggle} disabled={!current}><span>{playing ? <Pause /> : <Play />}</span>{playing ? 'Pause' : 'Play'}</button>
         <div className="turntable-hint"><Volume2 size={18} /><p><strong>Drop the needle:</strong> tap/click anywhere in the record grooves. Outer grooves seek toward the start of the side; inner grooves seek toward the end.</p></div>
         <div className="turntable-tech"><span>Selected speed</span><strong>{speed === 33.333 ? '33⅓' : speed} RPM</strong><span>Pressing speed</span><strong>{nativeSpeed === 33.333 ? '33⅓' : nativeSpeed} RPM</strong><span>Fine pitch</span><strong>{pitch > 0 ? '+' : ''}{pitch.toFixed(1)}%</strong></div>

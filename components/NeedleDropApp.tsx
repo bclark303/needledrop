@@ -352,6 +352,24 @@ export default function NeedleDropApp() {
     if (queueIndex > 0) setQueueIndex((index) => index - 1);
   }
 
+  function selectTrack(index: number) {
+    if (strict || index < 0 || index >= queue.length) return;
+    setNeedsFlip(null);
+    setMotorOn(true);
+    setCueDown(true);
+    setTrackTime(0);
+    if (index === queueIndex) {
+      pendingSeek.current = null;
+      if (audio.current) {
+        audio.current.currentTime = 0;
+        audio.current.play().then(() => setPlaying(true)).catch(() => {});
+      }
+      return;
+    }
+    pendingSeek.current = 0;
+    setQueueIndex(index);
+  }
+
   function flip() {
     if (needsFlip === null) return;
     const start = queueSideLengths.slice(0, needsFlip).reduce((sum, length) => sum + length, 0);
@@ -446,7 +464,7 @@ export default function NeedleDropApp() {
 
     {view === 'album' && selected && <AlbumView album={selected} meta={meta} playbackSides={selectedPlaybackSides} displaySides={selectedDisplaySides} strict={strict} currentId={current?.id} onBack={() => setView('library')} onPlaySide={playSelectedSide} onOpenTurntable={openTurntable} onOpenMetadata={() => setMetadataOpen(true)} onAddChanger={() => addToChanger(selected)} onStar={starSelected} artworkOrder={settings?.artworkSourceOrder} />}
 
-    {view === 'turntable' && playingAlbum && <Turntable album={playingAlbum} meta={playingMeta} current={current} playing={playing} motorOn={motorOn} cueDown={cueDown} speed={speed} pitch={pitch} sideLabel={activeSideLabel} sideProgress={sideProgress()} queueCount={changerQueue.length} onBack={() => setView(selected ? 'album' : 'library')} onToggle={toggle} onMotor={toggleMotor} onCue={toggleCue} onSpeed={setSpeed} onPitch={setPitch} onNeedle={seekCurrentSide} onOpenChanger={() => setChangerOpen(true)} artworkOrder={settings?.artworkSourceOrder} />}
+    {view === 'turntable' && playingAlbum && <Turntable album={playingAlbum} meta={playingMeta} current={current} currentIndex={queueIndex} tracks={queue} strict={strict} playing={playing} motorOn={motorOn} cueDown={cueDown} speed={speed} pitch={pitch} sideLabel={activeSideLabel} sideProgress={sideProgress()} queueCount={changerQueue.length} onBack={() => setView(selected ? 'album' : 'library')} onToggle={toggle} onMotor={toggleMotor} onCue={toggleCue} onSpeed={setSpeed} onPitch={setPitch} onNeedle={seekCurrentSide} onSelectTrack={selectTrack} onOpenChanger={() => setChangerOpen(true)} artworkOrder={settings?.artworkSourceOrder} />}
 
     <audio ref={audio} onEnded={() => void ended()} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={(event) => setTrackTime(event.currentTarget.currentTime)} preload="metadata" />
 
