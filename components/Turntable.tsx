@@ -141,7 +141,7 @@ export default function Turntable({
                   </>;
                   return <li key={`${side.label}-${row.position || rowIndex}-${row.title}`} className={active ? 'active' : !row.song ? 'unavailable' : ''}>
                     {selectable
-                      ? <button onClick={() => onSelectTrack(targetIndex)} aria-current={active ? 'true' : undefined} aria-label={`Play ${row.title}`}>{content}</button>
+                      ? <button onClick={() => onSelectTrack(targetIndex!)} aria-current={active ? 'true' : undefined} aria-label={`Play ${row.title}`}>{content}</button>
                       : <div className="turntable-track-row" aria-current={active ? 'true' : undefined}>{content}</div>}
                   </li>;
                 })}
