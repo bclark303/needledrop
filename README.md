@@ -2,7 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.8.4**
+Current version: **v0.8.5**
+
+## v0.8.5 — Turntable track listing
+
+- The Turntable view now shows the selected physical release's complete track listing grouped by record side.
+- The currently playing track is highlighted with a live **Now playing** indicator.
+- **Vinyl Mode** keeps the track list display-only so playback still follows needle placement and physical side changes.
+- **Normal Mode** makes locally playable tracks selectable directly from the Turntable view, including tracks on another physical side.
+- Tracks present on the selected pressing but unavailable in the local library remain visible and are explicitly marked unavailable.
+- The compact mobile playback-mode label now correctly switches between Vinyl and Normal.
+- Package, in-app/API version reporting, PWA cache, and deployment MusicBrainz User-Agent defaults are synchronized at v0.8.5.
 
 ## v0.8.4 — Post-release cleanup
 
