@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { Archive, ArrowLeft, Grid2X2, Library, PanelTopOpen, Search, Sparkles, Store, Warehouse } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { Album, CollectionGroupMode, CollectionSort, CollectionViewMode, RecordRoomConfig, RecordRoomShelf } from './types';
+import type { Album, CollectionGroupMode, CollectionSort, RecordRoomConfig, RecordRoomShelf } from './types';
 import CollectionShelfView, { filterShelf, groupAlbums, sortAlbums } from './CollectionShelfView';
 import RecordRoomPanel from './RecordRoomPanel';
 import RecordRoomScene, { type RoomCollection } from './RecordRoomScene';

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/**/*.test.mts",
+    "verify:collection": "node scripts/verify-collection.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

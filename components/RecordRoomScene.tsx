@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Disc3, Grid2X2, Library, RotateCcw, SlidersHorizontal, Sparkles, Volume2 } from 'lucide-react';
+import { Disc3, Grid2X2, Library, RotateCcw, SlidersHorizontal, Volume2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Album, HiFiSettings, RecordRoomConfig } from './types';
