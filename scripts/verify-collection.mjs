@@ -37,13 +37,24 @@ function buildReport(database, resolvedPath) {
   const integrityRows = database.prepare('PRAGMA integrity_check(20)').all();
   const integrity = integrityRows.map((row) => String(Object.values(row)[0] || '')).join('; ');
   const albums = database.prepare(`
-    SELECT album_id, artist, title, artwork_mode, canonical_artwork_id, navidrome_cover_art
+    SELECT album_id, artist, title, artwork_mode, canonical_artwork_id, navidrome_cover_art, updated_at
     FROM albums
     ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE, album_id
   `).all();
+  const latestScan = readSystemJson(database, 'library_scan_status');
+  const indexSnapshot = readSystemJson(database, 'library_index_snapshot');
+  const snapshotIds = Array.isArray(indexSnapshot?.albumIds) ? new Set(indexSnapshot.albumIds.map(String)) : null;
+  const activeSince = latestScan?.state === 'complete' ? Date.parse(String(latestScan.startedAt || '')) : Number.NaN;
+  const currentAlbums = snapshotIds?.size
+    ? albums.filter((album) => snapshotIds.has(String(album.album_id)))
+    : Number.isFinite(activeSince)
+      ? albums.filter((album) => Date.parse(String(album.updated_at || '')) >= activeSince)
+      : albums;
+  const currentIds = new Set(currentAlbums.map((album) => String(album.album_id)));
   const merges = database.prepare('SELECT alias_id, canonical_id, created_at FROM album_merges').all();
+  const currentMerges = merges.filter((merge) => currentIds.has(String(merge.alias_id)) || currentIds.has(String(merge.canonical_id)));
   const hidden = new Set(merges.map((row) => String(row.alias_id)));
-  const visibleAlbums = albums.filter((album) => !hidden.has(String(album.album_id)));
+  const visibleAlbums = currentAlbums.filter((album) => !hidden.has(String(album.album_id)));
   const albumById = new Map(albums.map((album) => [String(album.album_id), album]));
   const albumMeta = database.prepare('SELECT album_id, payload FROM album_meta ORDER BY album_id').all();
   const artwork = database.prepare(`
@@ -54,20 +65,20 @@ function buildReport(database, resolvedPath) {
   const artworkById = new Map(artwork.map((candidate) => [Number(candidate.id), candidate]));
   const selectedPressingArtwork = albumMeta
     .map((row) => selectedPressingArtworkState(row, albumById, artworkById))
-    .filter(Boolean);
+    .filter((selection) => selection && currentIds.has(selection.albumId));
   const duplicateGroups = findDuplicateGroups(visibleAlbums);
-  const sgtPepperAlbums = albums.filter((album) => {
+  const sgtPepperAlbums = currentAlbums.filter((album) => {
     const title = normalizeIdentity(String(album.title || ''));
     return title.includes('sgt pepper') && title.includes('lonely hearts');
   });
-  const unresolvedPinnedArtwork = albums
+  const unresolvedPinnedArtwork = currentAlbums
     .filter((album) => album.artwork_mode === 'candidate')
     .filter((album) => {
       const candidate = artworkById.get(Number(album.canonical_artwork_id));
       return !candidate?.remote_url;
     })
     .map(albumSummary);
-  const pinnedPressingArtwork = albums
+  const pinnedPressingArtwork = currentAlbums
     .filter((album) => album.artwork_mode === 'candidate')
     .map((album) => {
       const candidate = artworkById.get(Number(album.canonical_artwork_id));
@@ -96,12 +107,15 @@ function buildReport(database, resolvedPath) {
     database: {
       path: resolvedPath,
       integrity,
-      indexedAlbums: albums.length,
+      indexedAlbums: currentAlbums.length,
       visibleAlbums: visibleAlbums.length,
-      mergedAliases: merges.length,
+      mergedAliases: currentMerges.length,
+      historicalIndexedRows: albums.length,
+      historicalMergeRows: merges.length,
+      currentIndexSource: snapshotIds?.size ? 'library_index_snapshot' : Number.isFinite(activeSince) ? 'latest_scan_timestamp' : 'all_rows',
     },
     collection: {
-      latestScan: readSystemJson(database, 'library_scan_status'),
+      latestScan,
       metadataOnlyAlbums: albumMeta
         .filter((row) => !albumById.has(String(row.album_id)))
         .map((row) => String(row.album_id)),
@@ -126,6 +140,7 @@ function buildReport(database, resolvedPath) {
     },
     limits: [
       'Database state can prove indexed rows, merges, and canonical artwork selections.',
+      'Current albums come from the last full-library snapshot, or from rows refreshed since the latest completed scan for databases created before snapshots were added.',
       'Completeness against the earlier missing-album list requires that list or a current Navidrome comparison.',
       'A configured remote artwork URL still requires an HTTP/UI check to prove that the image currently renders.',
     ],
