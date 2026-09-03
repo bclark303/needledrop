@@ -5,6 +5,7 @@ import { APP_VERSION, SETTINGS_SCHEMA_VERSION } from './version';
 export type StoredSettings = {
   schemaVersion: number;
   navidromeUrl?: string;
+  navidromeMusicFolderId?: string;
   discogsEnabled?: boolean;
   discogsToken?: string;
   musicbrainzEnabled?: boolean;
@@ -29,6 +30,7 @@ function envDefaults(): StoredSettings {
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     navidromeUrl: process.env.NAVIDROME_URL?.trim() || '',
+    navidromeMusicFolderId: process.env.NAVIDROME_MUSIC_FOLDER_ID?.trim() || '',
     discogsEnabled: true,
     discogsToken: process.env.DISCOGS_TOKEN?.trim() || '',
     musicbrainzEnabled: true,
@@ -71,6 +73,11 @@ export async function getNavidromeUrl() {
   return value.replace(/\/$/, '');
 }
 
+export async function getNavidromeMusicFolderId() {
+  const settings = await getStoredSettings();
+  return settings.navidromeMusicFolderId?.trim() || '';
+}
+
 export async function getDiscogsConfig() {
   const settings = await getStoredSettings();
   return {
@@ -92,6 +99,8 @@ export async function getPublicSettings(username?: string | null): Promise<AppSe
   const settings = await getStoredSettings();
   return {
     navidromeUrl: settings.navidromeUrl || '',
+    navidromeMusicFolderId: settings.navidromeMusicFolderId || '',
+    navidromeLibraries: [],
     discogsEnabled: settings.discogsEnabled !== false,
     discogsTokenConfigured: Boolean(settings.discogsToken?.trim()),
     musicbrainzEnabled: settings.musicbrainzEnabled !== false,
@@ -133,6 +142,7 @@ export async function saveSettings(patch: AppSettingsPatch): Promise<StoredSetti
   const next: StoredSettings = { ...current };
 
   if (typeof patch.navidromeUrl === 'string') next.navidromeUrl = patch.navidromeUrl.trim();
+  if (typeof patch.navidromeMusicFolderId === 'string') next.navidromeMusicFolderId = patch.navidromeMusicFolderId.trim();
   if (typeof patch.discogsEnabled === 'boolean') next.discogsEnabled = patch.discogsEnabled;
   if (typeof patch.musicbrainzEnabled === 'boolean') next.musicbrainzEnabled = patch.musicbrainzEnabled;
   if (typeof patch.musicbrainzUserAgent === 'string') next.musicbrainzUserAgent = patch.musicbrainzUserAgent.trim();

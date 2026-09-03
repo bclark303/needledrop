@@ -92,7 +92,7 @@ export default function LibraryManager({
       {error && <div className="settings-warning"><AlertCircle /> {error}</div>}
 
       <section className="library-manager-block">
-        <div className="library-manager-heading"><div><h3>Rescan library</h3><p>Ask Navidrome to scan its folders, then rebuild NeedleDrop's complete album index and check new metadata/artwork.</p></div><button className="primary" disabled={scanning || busy === 'scan'} onClick={() => void action({ action: 'scan' }, 'scan')}><RefreshCw size={17} className={scanning ? 'spin' : ''} /> {scanning ? 'Scanning…' : 'Rescan now'}</button></div>
+        <div className="library-manager-heading"><div><h3>Refresh library</h3><p>Rebuild NeedleDrop's album index and check metadata/artwork. A selected Navidrome library stays isolated; All mode may also request a Navidrome folder scan.</p></div><button className="primary" disabled={scanning || busy === 'scan'} onClick={() => void action({ action: 'scan' }, 'scan')}><RefreshCw size={17} className={scanning ? 'spin' : ''} /> {scanning ? 'Refreshing…' : 'Refresh now'}</button></div>
         <div className={`scan-status ${data?.status?.state || 'idle'}`}>
           {data?.status?.state === 'complete' ? <CheckCircle2 size={18} /> : <RefreshCw size={18} className={scanning ? 'spin' : ''} />}
           <span>{data?.status?.message || 'No manual scan has been run yet.'}</span>

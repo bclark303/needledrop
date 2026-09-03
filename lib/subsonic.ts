@@ -2,7 +2,9 @@ import crypto from 'crypto';
 import { diagnosticFetch } from './diagnostic-fetch';
 import { recordDiagnostic } from './diagnostics';
 import { getSession, type Session } from './session';
-import { getNavidromeUrl } from './settings';
+import { getNavidromeMusicFolderId, getNavidromeUrl } from './settings';
+import type { NavidromeLibrary } from '@/components/types';
+import { navidromeEndpointSupportsLibraryScope, scopeNavidromeParams } from './navidrome-library';
 import { APP_NAME } from './version';
 
 const API_VERSION = '1.16.1';
@@ -21,8 +23,12 @@ export function authParams(session: Session) {
 export async function subsonic(endpoint: string, params: Record<string, string | number | boolean | undefined> = {}, session?: Session) {
   const auth = session ?? await getSession();
   if (!auth) throw new Error('UNAUTHENTICATED');
+  const selectedMusicFolderId = navidromeEndpointSupportsLibraryScope(endpoint)
+    ? await getNavidromeMusicFolderId()
+    : '';
+  const scopedParams = scopeNavidromeParams(endpoint, params, selectedMusicFolderId);
   const q = new URLSearchParams();
-  for (const [key, value] of Object.entries({ ...authParams(auth), ...params })) {
+  for (const [key, value] of Object.entries({ ...authParams(auth), ...scopedParams })) {
     if (value !== undefined) q.set(key, String(value));
   }
   const base = await getNavidromeUrl();
@@ -30,12 +36,13 @@ export async function subsonic(endpoint: string, params: Record<string, string |
     provider: 'navidrome',
     operation: endpoint,
     data: {
-      paramKeys: Object.keys(params).sort(),
+      paramKeys: Object.keys(scopedParams).sort(),
       requestShape: {
-        type: params.type,
-        size: params.size,
-        offset: params.offset,
-        idPresent: params.id != null,
+        type: scopedParams.type,
+        size: scopedParams.size,
+        offset: scopedParams.offset,
+        idPresent: scopedParams.id != null,
+        musicFolderSelected: scopedParams.musicFolderId != null,
       },
     },
   });
@@ -52,6 +59,18 @@ export async function subsonic(endpoint: string, params: Record<string, string |
     throw new Error(root?.error?.message || 'Navidrome request failed');
   }
   return root;
+}
+
+export async function getNavidromeLibraries(session?: Session): Promise<NavidromeLibrary[]> {
+  const root = await subsonic('getMusicFolders', {}, session);
+  const folders = root.musicFolders?.musicFolder || [];
+  return folders
+    .map((folder: { id?: string | number; name?: string }) => ({
+      id: String(folder.id ?? ''),
+      name: String(folder.name || `Library ${folder.id ?? ''}`).trim(),
+    }))
+    .filter((folder: NavidromeLibrary) => folder.id)
+    .sort((a: NavidromeLibrary, b: NavidromeLibrary) => a.name.localeCompare(b.name));
 }
 
 export async function mediaUrl(endpoint: 'stream' | 'getCoverArt', id: string, extra: Record<string, string> = {}) {
