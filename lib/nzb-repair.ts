@@ -454,7 +454,7 @@ async function processCompletedRepair(settings: NzbRepairSettings, request: NzbR
   const inspected = await inspectAudioFiles(audioFiles);
   const used = new Set<string>();
   const imported: string[] = [];
-  const importRoot = path.resolve(settings.importPath || '/music-repair');
+  const importRoot = path.resolve(/*turbopackIgnore: true*/ settings.importPath || '/music-repair');
   const albumDir = safeJoin(importRoot, safePathPart(request.artist), safePathPart(request.albumTitle));
   await mkdir(albumDir, { recursive: true });
 
@@ -484,8 +484,8 @@ async function processCompletedRepair(settings: NzbRepairSettings, request: NzbR
 
   let cleanupMessage = '';
   if (settings.cleanupStaging !== false) {
-    const stagingRoot = path.resolve(settings.stagingPath || '/repair');
-    const resolvedJob = path.resolve(jobDir);
+    const stagingRoot = path.resolve(/*turbopackIgnore: true*/ settings.stagingPath || '/repair');
+    const resolvedJob = path.resolve(/*turbopackIgnore: true*/ jobDir);
     if (resolvedJob.startsWith(`${stagingRoot}${path.sep}`) && path.basename(resolvedJob).includes(request.token)) {
       await rm(resolvedJob, { recursive: true, force: true }).catch(() => {});
     } else {
@@ -552,7 +552,8 @@ async function findAudioFiles(root: string, depth = 0): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   const result: string[] = [];
   for (const entry of entries) {
-    const full = path.join(root, entry.name);
+    // This root is a validated runtime repair mount, not a build-time project path.
+    const full = path.join(/*turbopackIgnore: true*/ root, entry.name);
     if (entry.isDirectory()) result.push(...await findAudioFiles(full, depth + 1));
     else if (entry.isFile() && isAudioFilename(entry.name)) result.push(full);
     if (result.length >= 300) break;
@@ -561,7 +562,7 @@ async function findAudioFiles(root: string, depth = 0): Promise<string[]> {
 }
 
 async function locateSabJobDirectory(settings: NzbRepairSettings, token: string, sabJob: SabJob) {
-  const staging = path.resolve(settings.stagingPath || '/repair');
+  const staging = path.resolve(/*turbopackIgnore: true*/ settings.stagingPath || '/repair');
   const candidates = [sabJob.storage, sabJob.path, sabJob.name]
     .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
     .map((value) => path.basename(value.replace(/[\\/]+$/, '')))
@@ -659,8 +660,8 @@ async function testIndexer(settings: NzbRepairSettings) {
 }
 
 async function testRepairPaths(settings: NzbRepairSettings) {
-  const staging = path.resolve(settings.stagingPath || '/repair');
-  const imports = path.resolve(settings.importPath || '/music-repair');
+  const staging = path.resolve(/*turbopackIgnore: true*/ settings.stagingPath || '/repair');
+  const imports = path.resolve(/*turbopackIgnore: true*/ settings.importPath || '/music-repair');
   const stagingReadable = await access(staging, fsConstants.R_OK).then(() => true).catch(() => false);
   const importWritable = await access(imports, fsConstants.W_OK).then(() => true).catch(async () => {
     try {
@@ -1018,8 +1019,8 @@ function safePathPart(value: string) {
 }
 
 function safeJoin(root: string, ...parts: string[]) {
-  const resolvedRoot = path.resolve(root);
-  const result = path.resolve(resolvedRoot, ...parts);
+  const resolvedRoot = path.resolve(/*turbopackIgnore: true*/ root);
+  const result = path.resolve(/*turbopackIgnore: true*/ resolvedRoot, ...parts);
   if (result !== resolvedRoot && !result.startsWith(`${resolvedRoot}${path.sep}`)) throw new Error('Unsafe repair path rejected.');
   return result;
 }

@@ -1,5 +1,5 @@
 import { constants as fsConstants } from 'node:fs';
-import { access, copyFile, mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { access, copyFile, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { getDatabasePath, getSystemJson, setSystemJson } from './db';
@@ -106,7 +106,7 @@ export function saveDirectRepairSettings(patch: Partial<DirectRepairSettings>) {
 
 export async function testDirectRepairPath(overrides: Partial<DirectRepairSettings> = {}) {
   const settings = { ...getDirectRepairSettings(), ...overrides };
-  const libraryPath = path.resolve(settings.libraryPath || '/music');
+  const libraryPath = path.resolve(/*turbopackIgnore: true*/ settings.libraryPath || '/music');
   const exists = await directoryExists(libraryPath);
   const writable = exists && await access(libraryPath, fsConstants.W_OK).then(() => true).catch(() => false);
   return { libraryPath, exists, writable };
@@ -178,7 +178,7 @@ async function promoteRetainedTracks(repair: NzbRepairRequest) {
 
   try {
     const nzbSettings = getNzbRepairSettings();
-    const safeRoot = path.resolve(nzbSettings.importPath || '/music-repair');
+    const safeRoot = path.resolve(/*turbopackIgnore: true*/ nzbSettings.importPath || '/music-repair');
     const safeAlbumDir = safeJoin(safeRoot, safePathPart(repair.artist), safePathPart(repair.albumTitle));
     const safeFiles = await findAudioFiles(safeAlbumDir);
     if (!safeFiles.length) {
@@ -301,7 +301,7 @@ function strictDirectVerification(target: MissingRepairTrack, artist: string, al
 }
 
 async function loadAlbumPathContext(albumId: string, libraryPath: string): Promise<AlbumPathContext> {
-  const root = path.resolve(libraryPath || '/music');
+  const root = path.resolve(/*turbopackIgnore: true*/ libraryPath || '/music');
   if (!await directoryExists(root)) throw new Error(`The direct-library mount does not exist at ${root}.`);
   const writable = await access(root, fsConstants.W_OK).then(() => true).catch(() => false);
   if (!writable) throw new Error(`The direct-library mount is not writable at ${root}.`);
@@ -331,14 +331,16 @@ function resolveTargetDirectory(context: AlbumPathContext, target?: MissingRepai
 
 function resolveNavidromePath(root: string, value: string) {
   const normalized = value.replace(/\\/g, path.sep);
-  const candidate = path.isAbsolute(normalized) ? path.resolve(normalized) : path.resolve(root, normalized);
+  const candidate = path.isAbsolute(normalized)
+    ? path.resolve(/*turbopackIgnore: true*/ normalized)
+    : path.resolve(/*turbopackIgnore: true*/ root, normalized);
   return isWithin(root, candidate) ? candidate : null;
 }
 
 function commonDirectory(values: string[]) {
-  let common = path.resolve(values[0]);
+  let common = path.resolve(/*turbopackIgnore: true*/ values[0]);
   for (const value of values.slice(1)) {
-    const current = path.resolve(value);
+    const current = path.resolve(/*turbopackIgnore: true*/ value);
     while (common !== path.dirname(common) && current !== common && !current.startsWith(`${common}${path.sep}`)) common = path.dirname(common);
   }
   return common;
@@ -377,7 +379,8 @@ async function findAudioFiles(root: string, depth = 0): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   const result: string[] = [];
   for (const entry of entries) {
-    const full = path.join(root, entry.name);
+    // This root is a validated runtime music mount, not a build-time project path.
+    const full = path.join(/*turbopackIgnore: true*/ root, entry.name);
     if (entry.isDirectory()) result.push(...await findAudioFiles(full, depth + 1));
     else if (entry.isFile() && /\.(flac|mp3|m4a|aac|ogg|opus|wav|ape|wv)$/i.test(entry.name)) result.push(full);
   }
@@ -426,15 +429,15 @@ function safePathPart(value: string) {
 }
 
 function safeJoin(root: string, ...parts: string[]) {
-  const resolvedRoot = path.resolve(root);
-  const result = path.resolve(resolvedRoot, ...parts);
+  const resolvedRoot = path.resolve(/*turbopackIgnore: true*/ root);
+  const result = path.resolve(/*turbopackIgnore: true*/ resolvedRoot, ...parts);
   if (!isWithin(resolvedRoot, result)) throw new Error('Unsafe direct-repair path rejected.');
   return result;
 }
 
 function isWithin(root: string, candidate: string) {
-  const resolvedRoot = path.resolve(root);
-  const resolvedCandidate = path.resolve(candidate);
+  const resolvedRoot = path.resolve(/*turbopackIgnore: true*/ root);
+  const resolvedCandidate = path.resolve(/*turbopackIgnore: true*/ candidate);
   return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(`${resolvedRoot}${path.sep}`);
 }
 

@@ -4,21 +4,7 @@ import ArtworkRefresh from '@/components/ArtworkRefresh';
 import ClientDiagnostics from '@/components/ClientDiagnostics';
 import './globals.css';
 import './discogs.css';
-import './v4-1.css';
-import './v4-2.css';
-import './v4-3.css';
-import './v4-4.css';
-import './v4-5.css';
-import './v5.css';
-import './v6.css';
-import './v7.css';
-import './v7-2.css';
-import './v8.css';
-import './v8-1.css';
-import './v8-2.css';
-import './v8-2-theme-picker.css';
-import './v8-3.css';
-import './v8-5.css';
+import './needledrop.css';
 
 export const metadata: Metadata = {
   title: { default: 'NeedleDrop', template: '%s · NeedleDrop' },

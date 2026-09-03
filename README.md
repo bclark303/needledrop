@@ -297,9 +297,27 @@ Then restart the container. In Unraid, **Force Update** performs the equivalent 
 ## Development
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
 npm run dev
 ```
 
-The production Docker build uses Next.js standalone output. Pull requests validate AMD64 and releases from `main` publish an AMD64 GHCR image. The browser/PWA client itself is architecture-independent.
+Before opening a pull request:
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+The production Docker build uses the committed lockfile with `npm ci` and Next.js standalone output. Pull requests validate AMD64 and releases from `main` publish an AMD64 GHCR image. The browser/PWA client itself is architecture-independent.
+
+### Collection closeout report
+
+The container includes a read-only collection verifier for the current SQLite database:
+
+```bash
+docker exec needledrop npm run verify:collection -- /data/needledrop.db
+```
+
+The JSON report checks database integrity, current album/merge counts, unresolved duplicate groups, Sgt. Pepper merge state, pinned pressing-artwork records, broken pinned selections, and albums with no known artwork. It does not modify the database. Proving that every previously missing album has returned still requires either the earlier missing-album list or a comparison with the current Navidrome library; proving that remote artwork renders requires an HTTP/UI check.
