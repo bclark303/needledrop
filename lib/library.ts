@@ -39,6 +39,11 @@ export type MergeRecord = {
   createdAt: string;
 };
 
+type LibraryIndexSnapshot = {
+  albumIds: string[];
+  capturedAt: string;
+};
+
 let libraryDatabase: DatabaseSync | null = null;
 let scanRunning: Promise<void> | null = null;
 
@@ -116,6 +121,10 @@ async function runLibraryRescan(initial: LibraryScanStatus) {
     setSystemJson('library_scan_status', status);
     const albums = await loadAllAlbums();
     indexAlbums(albums);
+    setSystemJson('library_index_snapshot', {
+      albumIds: albums.map((album) => album.id),
+      capturedAt: new Date().toISOString(),
+    } satisfies LibraryIndexSnapshot);
     const visible = prepareVisibleAlbums(albums);
 
     status = {
@@ -278,8 +287,12 @@ export function listDuplicateGroups(): DuplicateGroup[] {
   const db = connection();
   const hiddenRows = db.prepare('SELECT alias_id FROM album_merges').all() as Array<{ alias_id: string }>;
   const hidden = new Set(hiddenRows.map((row) => String(row.alias_id)));
+  const snapshot = getSystemJson<LibraryIndexSnapshot>('library_index_snapshot');
+  const activeIds = snapshot?.albumIds?.length ? new Set(snapshot.albumIds) : null;
+  const lastCompleteScan = activeIds ? null : getLibraryScanStatus();
+  const activeSince = lastCompleteScan?.state === 'complete' ? Date.parse(lastCompleteScan.startedAt || '') : Number.NaN;
   const rows = db.prepare(`
-    SELECT album_id, artist, title, year
+    SELECT album_id, artist, title, year, updated_at
     FROM albums
     ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE, year, album_id
   `).all() as Array<Record<string, unknown>>;
@@ -288,6 +301,8 @@ export function listDuplicateGroups(): DuplicateGroup[] {
   for (const row of rows) {
     const id = String(row.album_id || '');
     if (!id || hidden.has(id)) continue;
+    if (activeIds && !activeIds.has(id)) continue;
+    if (!activeIds && Number.isFinite(activeSince) && Date.parse(String(row.updated_at || '')) < activeSince) continue;
     const artist = String(row.artist || '');
     const title = String(row.title || '');
     const key = `${normalizeIdentity(artist)}\u0000${normalizeIdentity(title)}`;
