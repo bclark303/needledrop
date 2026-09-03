@@ -145,6 +145,41 @@ export default function NeedleDropApp() {
     applySettings(payload.settings, payload.version);
   }
 
+  function handleSettingsSaved(next: AppSettings) {
+    const libraryChanged = settings?.navidromeMusicFolderId !== next.navidromeMusicFolderId;
+    applySettings(next);
+    setSettingsOpen(false);
+    if (!libraryChanged) return;
+    if (audio.current) {
+      audio.current.pause();
+      audio.current.removeAttribute('src');
+      audio.current.load();
+    }
+    if (navigator.mediaSession) {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+    }
+    setPlaying(false);
+    setAlbums([]);
+    setQuery('');
+    setSelected(null);
+    setMeta(null);
+    setMetadataOpen(false);
+    setPlayingAlbum(null);
+    setPlayingMeta(null);
+    setQueue([]);
+    setQueueIndex(-1);
+    setQueueSideLengths([]);
+    setQueueSideLabels([]);
+    setNeedsFlip(null);
+    setTrackTime(0);
+    setTrackDuration(0);
+    pendingSeek.current = null;
+    setChangerQueue([]);
+    setView('library');
+    void loadAlbums(sort);
+  }
+
   async function loadAlbums(type: CollectionSort, probe = false) {
     const serverType = type === 'newest'
       ? 'newest'
@@ -473,7 +508,7 @@ export default function NeedleDropApp() {
     {needsFlip !== null && playingAlbum && <div className="flip-overlay"><div className="flip-card"><div className="big-record"><Disc3 size={170} /></div><p>{transitionText(fromLabel, toLabel).toUpperCase()}</p><h2>{fromLabel && toLabel && /^[A-Z]$/.test(fromLabel) && (fromLabel.charCodeAt(0) - 65) % 2 === 1 ? 'Change the record' : 'Flip the record'}</h2><span>{playingAlbum.artist} — {playingAlbum.name}</span><button onClick={flip}><RotateCcw /> {transitionText(fromLabel, toLabel)}</button></div></div>}
 
     {selected && <MetadataDrawer album={selected} meta={meta} open={metadataOpen} onClose={() => setMetadataOpen(false)} onMeta={(next) => { setMeta(next); setAlbums((items) => items.map((album) => album.id === selected.id ? { ...album, rating: next.rating } : album)); if (playingAlbum?.id === selected.id) setPlayingMeta(next); }} />}
-    <SettingsPanel open={settingsOpen} settings={settings} version={version} onClose={() => setSettingsOpen(false)} onSaved={(next) => { applySettings(next); setSettingsOpen(false); }} />
+    <SettingsPanel open={settingsOpen} settings={settings} version={version} onClose={() => setSettingsOpen(false)} onSaved={handleSettingsSaved} />
     <LibraryManager open={libraryManagerOpen} onClose={() => setLibraryManagerOpen(false)} onChanged={() => void loadAlbums(sort)} />
     <ChangerPanel open={changerOpen} items={changerQueue} enabled={settings?.changerEnabled !== false} onClose={() => setChangerOpen(false)} onMove={moveChanger} onRemove={(key) => setChangerQueue((items) => items.filter((item) => item.key !== key))} onPlayNow={(index) => { setChangerOpen(false); void advanceChanger(index); }} onClear={() => setChangerQueue([])} />
   </main>;

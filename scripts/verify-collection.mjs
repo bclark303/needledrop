@@ -43,9 +43,10 @@ function buildReport(database, resolvedPath) {
   `).all();
   const latestScan = readSystemJson(database, 'library_scan_status');
   const indexSnapshot = readSystemJson(database, 'library_index_snapshot');
-  const snapshotIds = Array.isArray(indexSnapshot?.albumIds) ? new Set(indexSnapshot.albumIds.map(String)) : null;
+  const hasIndexSnapshot = Array.isArray(indexSnapshot?.albumIds);
+  const snapshotIds = hasIndexSnapshot ? new Set(indexSnapshot.albumIds.map(String)) : null;
   const activeSince = latestScan?.state === 'complete' ? Date.parse(String(latestScan.startedAt || '')) : Number.NaN;
-  const currentAlbums = snapshotIds?.size
+  const currentAlbums = snapshotIds
     ? albums.filter((album) => snapshotIds.has(String(album.album_id)))
     : Number.isFinite(activeSince)
       ? albums.filter((album) => Date.parse(String(album.updated_at || '')) >= activeSince)
@@ -112,7 +113,8 @@ function buildReport(database, resolvedPath) {
       mergedAliases: currentMerges.length,
       historicalIndexedRows: albums.length,
       historicalMergeRows: merges.length,
-      currentIndexSource: snapshotIds?.size ? 'library_index_snapshot' : Number.isFinite(activeSince) ? 'latest_scan_timestamp' : 'all_rows',
+      currentIndexSource: snapshotIds ? 'library_index_snapshot' : Number.isFinite(activeSince) ? 'latest_scan_timestamp' : 'all_rows',
+      navidromeMusicFolderId: hasIndexSnapshot ? String(indexSnapshot.musicFolderId || '') || null : null,
     },
     collection: {
       latestScan,

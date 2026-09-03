@@ -2,7 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.8.5**
+Current version: **v0.8.6**
+
+## v0.8.6 — Navidrome library selection and maintenance closeout
+
+- Settings now discovers the Navidrome libraries available to the signed-in user and can pin NeedleDrop to one named library.
+- Album browsing, search, random selection, full enrichment, diagnostics, track matching and NeedleDrop index refreshes consistently send the selected Navidrome `musicFolderId`.
+- Because Navidrome's Subsonic scan request is server-wide, NeedleDrop skips that request when a specific library is selected and refreshes only the selected library's visible inventory.
+- Changing libraries stops current playback, clears the record changer and invalidates the old current-library snapshot so records from different libraries cannot remain mixed in the active UI.
+- Full rescans persist an authoritative album-ID snapshot for the selected library; Duplicate Manager and live verification ignore historical cache rows from other or previously indexed libraries.
+- ESLint 9 flat configuration, focused Node tests, a package lockfile, reproducible Docker `npm ci`, consolidated application CSS and a clean Next.js build complete the v0.8 maintenance work.
+- Package, in-app/API version reporting, PWA cache and deployment MusicBrainz User-Agent defaults are synchronized at v0.8.6.
 
 ## v0.8.5 — Turntable track listing
 
@@ -256,6 +266,7 @@ Recommended base Unraid values:
 - Web UI port: host `3030` → container `3000`
 - Appdata: `/mnt/user/appdata/needledrop` → `/data`
 - `NAVIDROME_URL`: initial Navidrome address reachable from the container
+- `NAVIDROME_MUSIC_FOLDER_ID`: optional initial library ID; the named library can be selected later in NeedleDrop Settings
 - `SESSION_SECRET`: generate with `openssl rand -hex 32`
 - `DISCOGS_TOKEN`: optional initial Discogs token
 - `LASTFM_API_KEY`: optional Last.fm API key; can also be entered in Settings

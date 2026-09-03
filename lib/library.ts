@@ -3,6 +3,7 @@ import type { Album, AlbumDetail, Song } from '@/components/types';
 import { getDatabasePath, getSystemJson, indexAlbums, setSystemJson } from './db';
 import { logicalAlbumTitle, normalizedAlbumIdentity, parseSplitDiscTitle, splitDiscGroupKey } from './album-normalization';
 import { startEnrichment } from './enrichment';
+import { getNavidromeMusicFolderId } from './settings';
 import { subsonic } from './subsonic';
 
 export type LibraryScanStatus = {
@@ -42,6 +43,7 @@ export type MergeRecord = {
 type LibraryIndexSnapshot = {
   albumIds: string[];
   capturedAt: string;
+  musicFolderId?: string;
 };
 
 let libraryDatabase: DatabaseSync | null = null;
@@ -79,7 +81,7 @@ export function startLibraryRescan() {
     state: 'running',
     phase: 'starting',
     startedAt: new Date().toISOString(),
-    message: 'Starting Navidrome library scan…',
+    message: 'Starting library refresh…',
   };
   setSystemJson('library_scan_status', status);
   scanRunning = runLibraryRescan(status).finally(() => { scanRunning = null; });
@@ -89,32 +91,39 @@ export function startLibraryRescan() {
 async function runLibraryRescan(initial: LibraryScanStatus) {
   let status = initial;
   try {
-    status = { ...status, phase: 'navidrome', message: 'Asking Navidrome to rescan its music library…' };
-    setSystemJson('library_scan_status', status);
-
-    // Navidrome implements the Subsonic scan endpoints. Older or restricted
-    // servers may reject them; in that case NeedleDrop still refreshes its own
-    // index from whatever Navidrome currently exposes.
-    try {
-      await subsonic('startScan', { fullScan: false });
-      for (let attempt = 0; attempt < 150; attempt += 1) {
-        await delay(2000);
-        const scan = await subsonic('getScanStatus').catch(() => null);
-        const scanning = Boolean(scan?.scanStatus?.scanning);
-        const count = Number(scan?.scanStatus?.count || 0);
-        status = {
-          ...status,
-          phase: 'navidrome',
-          message: scanning
-            ? `Navidrome is scanning${count ? ` · ${count} items processed` : ''}…`
-            : 'Navidrome scan complete. Refreshing NeedleDrop…',
-        };
-        setSystemJson('library_scan_status', status);
-        if (!scanning) break;
-      }
-    } catch {
-      status = { ...status, message: 'Navidrome scan endpoint unavailable. Refreshing NeedleDrop index…' };
+    const musicFolderId = await getNavidromeMusicFolderId();
+    if (musicFolderId) {
+      status = { ...status, phase: 'navidrome', message: 'Refreshing the selected Navidrome library…' };
       setSystemJson('library_scan_status', status);
+    } else {
+      status = { ...status, phase: 'navidrome', message: 'Asking Navidrome to rescan its accessible music libraries…' };
+      setSystemJson('library_scan_status', status);
+
+      // Navidrome's Subsonic scan endpoint is server-wide rather than scoped by
+      // musicFolderId, so only use it when NeedleDrop is in "all libraries" mode.
+      // Older or restricted servers may reject it; NeedleDrop still refreshes
+      // its own index from whatever Navidrome currently exposes.
+      try {
+        await subsonic('startScan', { fullScan: false });
+        for (let attempt = 0; attempt < 150; attempt += 1) {
+          await delay(2000);
+          const scan = await subsonic('getScanStatus').catch(() => null);
+          const scanning = Boolean(scan?.scanStatus?.scanning);
+          const count = Number(scan?.scanStatus?.count || 0);
+          status = {
+            ...status,
+            phase: 'navidrome',
+            message: scanning
+              ? `Navidrome is scanning${count ? ` · ${count} items processed` : ''}…`
+              : 'Navidrome scan complete. Refreshing NeedleDrop…',
+          };
+          setSystemJson('library_scan_status', status);
+          if (!scanning) break;
+        }
+      } catch {
+        status = { ...status, message: 'Navidrome scan endpoint unavailable. Refreshing NeedleDrop index…' };
+        setSystemJson('library_scan_status', status);
+      }
     }
 
     status = { ...status, phase: 'syncing', message: 'Reading the complete album list from Navidrome…' };
@@ -124,6 +133,7 @@ async function runLibraryRescan(initial: LibraryScanStatus) {
     setSystemJson('library_index_snapshot', {
       albumIds: albums.map((album) => album.id),
       capturedAt: new Date().toISOString(),
+      musicFolderId,
     } satisfies LibraryIndexSnapshot);
     const visible = prepareVisibleAlbums(albums);
 
@@ -154,6 +164,18 @@ async function runLibraryRescan(initial: LibraryScanStatus) {
       message: error instanceof Error ? error.message : 'Library rescan failed',
     } satisfies LibraryScanStatus);
   }
+}
+
+export function invalidateLibraryIndexSnapshot(musicFolderId: string) {
+  setSystemJson('library_index_snapshot', {
+    albumIds: [],
+    capturedAt: new Date().toISOString(),
+    musicFolderId,
+  } satisfies LibraryIndexSnapshot);
+  setSystemJson('library_scan_status', {
+    state: 'idle',
+    message: 'Navidrome library selection changed. Run a library rescan to rebuild the current index.',
+  } satisfies LibraryScanStatus);
 }
 
 export async function loadAllAlbums() {
@@ -287,10 +309,7 @@ export function listDuplicateGroups(): DuplicateGroup[] {
   const db = connection();
   const hiddenRows = db.prepare('SELECT alias_id FROM album_merges').all() as Array<{ alias_id: string }>;
   const hidden = new Set(hiddenRows.map((row) => String(row.alias_id)));
-  const snapshot = getSystemJson<LibraryIndexSnapshot>('library_index_snapshot');
-  const activeIds = snapshot?.albumIds?.length ? new Set(snapshot.albumIds) : null;
-  const lastCompleteScan = activeIds ? null : getLibraryScanStatus();
-  const activeSince = lastCompleteScan?.state === 'complete' ? Date.parse(lastCompleteScan.startedAt || '') : Number.NaN;
+  const activeIds = currentLibraryAlbumIds(db);
   const rows = db.prepare(`
     SELECT album_id, artist, title, year, updated_at
     FROM albums
@@ -302,7 +321,6 @@ export function listDuplicateGroups(): DuplicateGroup[] {
     const id = String(row.album_id || '');
     if (!id || hidden.has(id)) continue;
     if (activeIds && !activeIds.has(id)) continue;
-    if (!activeIds && Number.isFinite(activeSince) && Date.parse(String(row.updated_at || '')) < activeSince) continue;
     const artist = String(row.artist || '');
     const title = String(row.title || '');
     const key = `${normalizeIdentity(artist)}\u0000${normalizeIdentity(title)}`;
@@ -325,7 +343,9 @@ export function listDuplicateGroups(): DuplicateGroup[] {
 }
 
 export function listMerges(): MergeRecord[] {
-  const rows = connection().prepare(`
+  const db = connection();
+  const activeIds = currentLibraryAlbumIds(db);
+  const rows = db.prepare(`
     SELECT m.alias_id, m.canonical_id, m.created_at,
            a.artist AS alias_artist, a.title AS alias_title,
            c.artist AS canonical_artist, c.title AS canonical_title
@@ -334,7 +354,9 @@ export function listMerges(): MergeRecord[] {
     LEFT JOIN albums c ON c.album_id=m.canonical_id
     ORDER BY c.artist COLLATE NOCASE, c.title COLLATE NOCASE, a.album_id
   `).all() as Array<Record<string, unknown>>;
-  return rows.map((row) => ({
+  return rows
+    .filter((row) => !activeIds || activeIds.has(String(row.alias_id)) || activeIds.has(String(row.canonical_id)))
+    .map((row) => ({
     aliasId: String(row.alias_id),
     aliasArtist: String(row.alias_artist || ''),
     aliasTitle: String(row.alias_title || ''),
@@ -342,7 +364,18 @@ export function listMerges(): MergeRecord[] {
     canonicalArtist: String(row.canonical_artist || ''),
     canonicalTitle: String(row.canonical_title || ''),
     createdAt: String(row.created_at || ''),
-  }));
+    }));
+}
+
+function currentLibraryAlbumIds(db: DatabaseSync) {
+  const snapshot = getSystemJson<LibraryIndexSnapshot>('library_index_snapshot');
+  if (Array.isArray(snapshot?.albumIds)) return new Set(snapshot.albumIds);
+  const status = getLibraryScanStatus();
+  const startedAt = status.state === 'complete' ? status.startedAt : undefined;
+  const activeSince = Date.parse(startedAt || '');
+  if (!startedAt || !Number.isFinite(activeSince)) return null;
+  const rows = db.prepare('SELECT album_id FROM albums WHERE updated_at >= ?').all(startedAt) as Array<{ album_id: string }>;
+  return new Set(rows.map((row) => String(row.album_id)));
 }
 
 export function mergeAlbums(canonicalId: string, aliasIds: string[]) {

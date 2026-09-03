@@ -39,6 +39,7 @@ export default function SettingsPanel({
     if (!settings) return;
     setForm({
       navidromeUrl: settings.navidromeUrl,
+      navidromeMusicFolderId: settings.navidromeMusicFolderId,
       discogsEnabled: settings.discogsEnabled,
       musicbrainzEnabled: settings.musicbrainzEnabled,
       musicbrainzUserAgent: settings.musicbrainzUserAgent,
@@ -89,6 +90,10 @@ export default function SettingsPanel({
 
   function update<K extends keyof AppSettingsPatch>(key: K, value: AppSettingsPatch[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateNavidromeUrl(navidromeUrl: string) {
+    setForm((current) => ({ ...current, navidromeUrl, navidromeMusicFolderId: '' }));
   }
 
   function moveMetadata(source: MetadataSource, delta: -1 | 1) {
@@ -170,6 +175,8 @@ export default function SettingsPanel({
 
   const metadataOrder = (form.metadataSourceOrder || activeSettings.metadataSourceOrder) as MetadataSource[];
   const artworkOrder = (form.artworkSourceOrder || activeSettings.artworkSourceOrder) as ArtworkSource[];
+  const selectedLibraryId = String(form.navidromeMusicFolderId ?? activeSettings.navidromeMusicFolderId ?? '');
+  const selectedLibraryAvailable = !selectedLibraryId || activeSettings.navidromeLibraries.some((library) => library.id === selectedLibraryId);
   const progress = enrichment?.total ? Math.round((enrichment.completed / enrichment.total) * 100) : 0;
 
   return <div className="settings-backdrop" onClick={onClose}>
@@ -183,7 +190,8 @@ export default function SettingsPanel({
 
       <div className="settings-section">
         <div className="settings-section-title"><h3>Connections</h3><p>Server-side sources used to build NeedleDrop's canonical collection database.</p></div>
-        <label className="settings-field wide"><span>Navidrome URL</span><div className="field-with-button"><input value={String(form.navidromeUrl || '')} onChange={(e) => update('navidromeUrl', e.target.value)} disabled={!activeSettings.canManage} placeholder="http://192.168.1.20:4533" /><button onClick={() => test('navidrome')}><PlugZap size={16} /> Test</button></div></label>
+        <label className="settings-field wide"><span>Navidrome URL</span><div className="field-with-button"><input value={String(form.navidromeUrl || '')} onChange={(e) => updateNavidromeUrl(e.target.value)} disabled={!activeSettings.canManage} placeholder="http://192.168.1.20:4533" /><button onClick={() => test('navidrome')}><PlugZap size={16} /> Test</button></div></label>
+        <label className="settings-field wide"><span>Navidrome library</span><select value={selectedLibraryId} onChange={(e) => update('navidromeMusicFolderId', e.target.value)} disabled={!activeSettings.canManage}><option value="">All accessible libraries</option>{!selectedLibraryAvailable && <option value={selectedLibraryId}>Unavailable library ({selectedLibraryId})</option>}{activeSettings.navidromeLibraries.map((library) => <option key={library.id} value={library.id}>{library.name}</option>)}</select><small>Browsing, search, random selection, enrichment, track matching and NeedleDrop refreshes stay inside this library.</small></label>
 
         <label className="settings-field wide"><span>Discogs personal access token</span><div className="field-with-button"><input type="password" value={discogsToken} onChange={(e) => setDiscogsToken(e.target.value)} disabled={!activeSettings.canManage} placeholder={activeSettings.discogsTokenConfigured ? 'Configured — enter a new token to replace it' : 'Paste a Discogs token'} /><button onClick={() => test('discogs')}><PlugZap size={16} /> Test</button></div></label>
         <label className="settings-check"><input type="checkbox" checked={form.discogsEnabled !== false} onChange={(e) => update('discogsEnabled', e.target.checked)} disabled={!activeSettings.canManage} /><span>Enable Discogs exact pressing metadata and release artwork</span></label>

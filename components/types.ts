@@ -200,6 +200,8 @@ export type VinylMeta = {
 
 export type AppSettings = {
   navidromeUrl: string;
+  navidromeMusicFolderId: string;
+  navidromeLibraries: NavidromeLibrary[];
   discogsEnabled: boolean;
   discogsTokenConfigured: boolean;
   musicbrainzEnabled: boolean;
@@ -217,7 +219,12 @@ export type AppSettings = {
   canManage: boolean;
 };
 
-export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'lastfmApiKeyConfigured' | 'canManage'>> & {
+export type NavidromeLibrary = {
+  id: string;
+  name: string;
+};
+
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'discogsTokenConfigured' | 'lastfmApiKeyConfigured' | 'navidromeLibraries' | 'canManage'>> & {
   discogsToken?: string;
   clearDiscogsToken?: boolean;
   lastfmApiKey?: string;
