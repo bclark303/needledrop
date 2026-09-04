@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Disc3, Grid2X2, Library, RotateCcw, SlidersHorizontal, Volume2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { Album, HiFiSettings, RecordRoomConfig } from './types';
+import type { Album, HiFiSettings, RecordRoomConfig, RecordRoomTheme } from './types';
 import { cover } from './vinyl';
 import { applyHiFiSettings, DEFAULT_HIFI_SETTINGS, readHiFiSettings } from '@/lib/client-hifi';
 
@@ -12,6 +12,21 @@ export type RoomCollection = {
   id: string;
   name: string;
   albums: Album[];
+};
+
+const ROOM_DETAILS: Record<RecordRoomTheme, { name: string; description: string }> = {
+  audiophile: {
+    name: 'Audiophile Listening Room',
+    description: 'Acoustic treatment, fitted libraries and reference hi-fi.',
+  },
+  'teen-bedroom': {
+    name: 'Bedroom Listening Nook',
+    description: 'Posters, string lights, compact furniture and records within reach.',
+  },
+  'record-store': {
+    name: 'Record Collector Room',
+    description: 'Display jackets, timber browsing bins and a dedicated listening counter.',
+  },
 };
 
 export default function RecordRoomScene({
@@ -33,6 +48,8 @@ export default function RecordRoomScene({
 }) {
   const byId = new Map(collections.map((collection) => [collection.id, collection]));
   const slots = room.roomSlots.map((id) => byId.get(id)).slice(0, 4);
+  const roomDetails = ROOM_DETAILS[room.theme];
+  const displayAlbums = [...new Map(slots.flatMap((slot) => slot?.albums || []).map((album) => [album.id, album])).values()].slice(0, 4);
   const [hifi, setHiFi] = useState<HiFiSettings>(DEFAULT_HIFI_SETTINGS);
   const [hifiOpen, setHiFiOpen] = useState(false);
 
@@ -54,17 +71,18 @@ export default function RecordRoomScene({
     applyHiFiSettings(next, true);
   }
 
-  return <section className="component-record-room" aria-label="Interactive Audiophile Listening Room">
+  return <section className={`component-record-room component-record-room-${room.theme}`} aria-label={`Interactive ${roomDetails.name}`}>
     <nav className="record-room-primary-nav" aria-label="NeedleDrop room navigation">
       <button className="active" aria-current="page"><Library /> Room</button>
       <button onClick={() => onOpenCollection('__all__')}><Grid2X2 /> Collection</button>
       <button onClick={onOpenTurntable}><Disc3 /> Turntable</button>
     </nav>
-    <div className="component-prototype-note">Audiophile Listening Room · live record furniture, working turntable and functional hi-fi controls.</div>
+    <div className="component-room-note"><strong>{roomDetails.name}</strong><span>{roomDetails.description}</span></div>
 
     <div className="component-room-stage">
       <div className="component-room-wall" aria-hidden="true" />
       <div className="component-room-floor" aria-hidden="true" />
+      <ThemeDecor theme={room.theme} albums={displayAlbums} />
       <div className="component-room-ceiling-light component-room-ceiling-light-left" aria-hidden="true" />
       <div className="component-room-ceiling-light component-room-ceiling-light-center" aria-hidden="true" />
       <div className="component-room-ceiling-light component-room-ceiling-light-right" aria-hidden="true" />
@@ -132,6 +150,33 @@ export default function RecordRoomScene({
       <span><Volume2 /> Click the amplifier for volume, balance and EQ.</span>
     </div>
   </section>;
+}
+
+function ThemeDecor({ theme, albums }: { theme: RecordRoomTheme; albums: Album[] }) {
+  if (theme === 'teen-bedroom') {
+    return <div className="bedroom-room-decor" aria-hidden="true">
+      <span className="bedroom-window"><i /><i /><i /><i /></span>
+      <span className="bedroom-string-lights">{Array.from({ length: 14 }).map((_, index) => <i key={index} />)}</span>
+      <span className="bedroom-posters"><i>LIVE</i><i>STEREO</i><i>PLAY LOUD</i></span>
+      <span className="bedroom-bed"><i /><b /></span>
+      <span className="bedroom-floor-speaker left" /><span className="bedroom-floor-speaker right" />
+    </div>;
+  }
+
+  if (theme === 'record-store') {
+    return <div className="record-store-decor" aria-hidden="true">
+      <span className="record-store-sign"><strong>NEEDLEDROP</strong><small>RECORDS · HI-FI · LISTENING ROOM</small></span>
+      <span className="record-store-pendants"><i /><i /><i /></span>
+      <span className="record-store-display-wall">
+        {albums.map((album) => <i key={album.id}><Image src={cover(album.coverArt, 300)} alt="" fill sizes="90px" unoptimized /></i>)}
+        {Array.from({ length: Math.max(0, 4 - albums.length) }).map((_, index) => <i className="empty" key={`empty-${index}`}><Disc3 /></i>)}
+      </span>
+      <span className="record-store-counter-mark">LISTENING BAR</span>
+      <span className="record-store-bin-row"><i /><i /><i /></span>
+    </div>;
+  }
+
+  return null;
 }
 
 function RecordLibrary({ collection, side, onOpen }: { collection?: RoomCollection; side: 'left' | 'right'; onOpen: (id: string) => void }) {

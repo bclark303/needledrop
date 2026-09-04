@@ -11,14 +11,17 @@ import type {
   RecordRoomTheme,
 } from './types';
 
-const PROTOTYPE_THEME: RecordRoomTheme = 'audiophile';
-const THEMES: Array<{ id: RecordRoomTheme; name: string; description: string; enabled: boolean }> = [
-  { id: 'audiophile', name: 'Audiophile Listening Room', description: 'Component-built prototype: live record shelves, hi-fi separates, turntable, album stand and furniture.', enabled: true },
-  { id: 'teen-bedroom', name: 'Bedroom Listening Nook', description: 'Will be rebuilt from the same component system after the Audiophile room is proven.', enabled: false },
-  { id: 'record-store', name: 'Record Collector Room', description: 'Will follow after the component-room interaction model is approved.', enabled: false },
+const THEMES: Array<{ id: RecordRoomTheme; name: string; description: string }> = [
+  { id: 'audiophile', name: 'Audiophile Listening Room', description: 'Purpose-built listening space with acoustic treatment, hi-fi separates and fitted record libraries.' },
+  { id: 'teen-bedroom', name: 'Bedroom Listening Nook', description: 'Warm, personal bedroom setup with posters, string lights, compact furniture and a floor crate.' },
+  { id: 'record-store', name: 'Record Collector Room', description: 'Record-shop-inspired space with display jackets, browsing racks, timber bins and a listening counter.' },
 ];
 
-const SLOT_NAMES = ['Left record library', 'Right record library', 'Low record cabinet', 'Front flip crate'];
+const SLOT_NAMES: Record<RecordRoomTheme, string[]> = {
+  audiophile: ['Left record library', 'Right record library', 'Low record cabinet', 'Front flip crate'],
+  'teen-bedroom': ['Wall record shelf', 'Bedroom bookcase', 'Media console', 'Floor record crate'],
+  'record-store': ['Left shop racks', 'Right shop racks', 'Listening counter', 'New-arrivals bin'],
+};
 type SmartRuleType = RecordRoomSmartRule['type'];
 
 export default function RecordRoomPanel({
@@ -46,7 +49,7 @@ export default function RecordRoomPanel({
   if (!open) return null;
 
   function save(next: RecordRoomConfig) {
-    onChange({ ...next, theme: PROTOTYPE_THEME });
+    onChange(next);
   }
 
   function mapSlot(index: number, collectionId: string) {
@@ -82,18 +85,18 @@ export default function RecordRoomPanel({
   return <div className="drawer-backdrop" onClick={onClose}>
     <aside className="drawer record-room-panel" onClick={(event) => event.stopPropagation()}>
       <button className="drawer-x" onClick={onClose} aria-label="Close"><X /></button>
-      <p className="eyebrow">V0.8 · RECORD ROOM</p>
+      <p className="eyebrow">V0.9 · RECORD ROOMS</p>
       <h2>Arrange the room</h2>
-      <p className="drawer-subtitle">For this prototype, only the Audiophile Listening Room is active. The goal is to prove the component-based room before rebuilding the other environments.</p>
+      <p className="drawer-subtitle">Choose a room, then decide which collection each piece of record furniture should display.</p>
 
       <section className="room-panel-section">
-        <div className="meta-block-title"><div><h3>Room design</h3><span>The photograph-based themes are retired. These rooms will be built from interactive components.</span></div></div>
+        <div className="meta-block-title"><div><h3>Room design</h3><span>Every room uses live, interactive NeedleDrop components rather than a background photograph.</span></div></div>
         <div className="room-theme-grid">
-          {THEMES.map((theme) => <button key={theme.id} disabled={!theme.enabled} className={`room-theme-card ${theme.enabled ? 'selected' : 'prototype-disabled'}`} onClick={() => theme.enabled && save({ ...room, theme: theme.id })}>
+          {THEMES.map((theme) => <button key={theme.id} className={`room-theme-card ${room.theme === theme.id ? 'selected' : ''}`} aria-pressed={room.theme === theme.id} onClick={() => save({ ...room, theme: theme.id })}>
             <span className={`room-theme-swatch theme-${theme.id}`}><Armchair /></span>
             <strong>{theme.name}</strong>
             <small>{theme.description}</small>
-            <span className="prototype-badge">{theme.enabled ? 'Active prototype' : 'After prototype'}</span>
+            <span className="room-theme-badge">{room.theme === theme.id ? 'Selected' : 'Available'}</span>
           </button>)}
         </div>
       </section>
@@ -101,7 +104,7 @@ export default function RecordRoomPanel({
       <section className="room-panel-section">
         <div className="meta-block-title"><div><h3>Map collections into the furniture</h3><span>These are real room components. The records visible inside them are drawn from the collection assigned here.</span></div></div>
         <div className="room-mapping-list">
-          {SLOT_NAMES.map((slotName, index) => <label className="room-mapping-row" key={slotName}>
+          {SLOT_NAMES[room.theme].map((slotName, index) => <label className="room-mapping-row" key={slotName}>
             <span className="room-mapping-icon"><MapPinned /></span>
             <span><strong>{slotName}</strong><small>Clicking this furniture opens its mapped collection</small></span>
             <select value={room.roomSlots[index] || ''} onChange={(event) => mapSlot(index, event.target.value)}>
