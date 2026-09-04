@@ -2,7 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.8.6**
+Current version: **v0.9.0**
+
+## v0.9.0 — Three interactive Record Rooms
+
+- The Bedroom Listening Nook and Record Collector Room are now available alongside the Audiophile Listening Room.
+- Each room is built from live NeedleDrop components with its own furniture layout, lighting, materials and decorative details—not a background photograph or simple colour swap.
+- The Bedroom Listening Nook adds a warm personal setup with posters, string lights, a bed, compact hi-fi furniture and a floor crate.
+- The Record Collector Room adds a record-shop display wall, hanging lights, timber browsing furniture, new-arrivals bins and a dedicated listening counter.
+- All three designs preserve the four mapped collection slots, clickable furniture, turntable, loaded album jacket and working amplifier controls.
+- The selected room is stored in the existing per-user Record Room configuration and survives reloads and container updates.
+- Package, in-app/API version reporting, PWA cache and deployment MusicBrainz User-Agent defaults are synchronized at v0.9.0.
 
 ## v0.8.6 — Navidrome library selection and maintenance closeout
 
@@ -53,7 +63,7 @@ The original photograph/hotspot Record Room experiment was retired in favour of 
 - The turntable is an interactive room component linked to the existing player.
 - The currently loaded album jacket is displayed beside the turntable and opens the album.
 - Room / Collection / Turntable navigation is available directly inside the room experience.
-- The Audiophile Listening Room is the active prototype. The Bedroom Listening Nook and Record Collector Room remain intentionally disabled until the component-room model is finalized.
+- This release established the shared component-room model later expanded to all three room designs in v0.9.0.
 
 ## v0.8.0–v0.8.1 — Record Room and collection organization
 
