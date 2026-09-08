@@ -2,7 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.9.0**
+Current version: **v0.9.1**
+
+## v0.9.1 — Organized library and settings menus
+
+- Library Manager is divided into focused Overview, Repair, Duplicates and Diagnostics sections instead of one long maintenance screen.
+- The new library overview shows scan state, possible duplicate count and reversible merged-entry count at a glance.
+- Settings is divided into Library, Metadata & artwork and Playback sections with clearer service grouping and descriptions.
+- Discogs, MusicBrainz/Cover Art Archive and Last.fm are presented as separate service cards while retaining their existing connection tests and controls.
+- The Settings save action remains visible while navigating and scrolling, and both menus use compact horizontally scrollable navigation on smaller screens.
+- No underlying library, repair, metadata, artwork, playback or persistence behavior changes are intended.
+- Package, in-app/API version reporting, PWA cache and deployment MusicBrainz User-Agent defaults are synchronized at v0.9.1.
 
 ## v0.9.0 — Three interactive Record Rooms
 
