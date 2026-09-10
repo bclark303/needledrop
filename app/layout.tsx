@@ -3,7 +3,6 @@ import Script from 'next/script';
 import ArtworkRefresh from '@/components/ArtworkRefresh';
 import ClientDiagnostics from '@/components/ClientDiagnostics';
 import './globals.css';
-import './discogs.css';
 import './needledrop.css';
 
 export const metadata: Metadata = {
