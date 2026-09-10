@@ -2,7 +2,17 @@
 
 NeedleDrop is a self-hosted virtual-vinyl front end for Navidrome. It turns a digital music library into something closer to using a physical record collection: browse jackets or physical-style shelves and crates, choose an exact pressing, interact with an animated turntable, lower the needle, flip sides, queue albums on an automatic changer spindle, and browse your collection from an interactive Record Room.
 
-Current version: **v0.9.1**
+Current version: **v0.9.2**
+
+## v0.9.2 — Interface style consolidation
+
+- Global CSS now owns only design tokens, the browser reset and accessibility defaults; NeedleDrop component styling lives in one application stylesheet.
+- The separate Discogs stylesheet has been folded into the application layer, removing an overlapping global CSS payload.
+- Superseded declarations were removed from repeated selectors and release-numbered CSS appendices were reorganized by feature.
+- Shared panels, form controls, buttons, cards, status messages, radii, borders and focus indicators now use the same design tokens.
+- Library Manager and Settings surfaces now share consistent control heights, spacing, borders and interaction states.
+- Record Room themes retain their distinct palettes while using the same renamed surface tokens.
+- No collection, metadata, playback or repair behavior changes are intended.
 
 ## v0.9.1 — Organized library and settings menus
 
